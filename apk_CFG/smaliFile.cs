@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 
 namespace apk_CFG
 {
-    class smaliFile
+    public class smaliFile
     {
         public string ClassName;
         public string SuperClassName;
@@ -18,13 +18,16 @@ namespace apk_CFG
         public List<string> Interfaces;
         public List<string> Direct_Method;
         public List<string> Virt_Method;
+        public List<method> methodCfg;
 
         public string smali_path;
         public string FileContent;
+        public string ClassFilePath;
 
-        public smaliFile(string smapath)
+        public smaliFile(string smapath,string ClassFilePath)
         {
             this.smali_path = smapath;
+            this.ClassFilePath = ClassFilePath;
             this.ClassName = this.SourceName = this.SuperClassName = this.FileContent = "";
             
             Annotations = new List<string>();
@@ -33,6 +36,7 @@ namespace apk_CFG
             Interfaces = new List<string>();
             Direct_Method = new List<string>();
             Virt_Method = new List<string>();
+            methodCfg = new List<method>();
 
             readFile();
             anaCurrentClass();
@@ -42,6 +46,26 @@ namespace apk_CFG
             anaInterface();
             anaDirect();
             anaVirtual();
+            anaEachMethod();
+        }
+
+        //对每个方法创建对应的分析库
+        //[警告]缺少对存在文件夹的分析
+        public void anaEachMethod()
+        {
+            int index = smali_path.LastIndexOf("\\", smali_path.Length - 1);
+            int endindex = smali_path.LastIndexOf(".", smali_path.Length - 1) + 1;
+            string ClassName = smali_path.Substring(index, endindex - index);
+            DirectoryInfo dir = new DirectoryInfo(ClassFilePath + "\\" + ClassName);
+            dir.Create();
+            foreach (string direcMethod in Direct_Method)
+            {
+                methodCfg.Add(new method(direcMethod, ClassFilePath + "\\" + ClassName+"\\"));
+            }
+            foreach (string virtuMethod in Virt_Method)
+            {
+                methodCfg.Add(new method(virtuMethod, ClassFilePath + "\\" + ClassName+"\\"));
+            }
         }
 
         //read smali file

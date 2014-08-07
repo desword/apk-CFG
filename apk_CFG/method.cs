@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml;
 
 namespace apk_CFG
 {
-    class method
+    public class method
     {
         public string methodName;
         public List<string> localVar;
@@ -14,18 +15,20 @@ namespace apk_CFG
         public List<int> borderIndex;//代码块的起始下标
         public List<string> InstruBlock;//代码指令块
 
-        public List<string> LinkFunc;//起点|终点|显示信息
+        public List<string> LinkFunc;//起点|终点|显示信息  -- 显示信息为single时，不进行任何连接操作
         public List<string> LinkHead;//代码块头部信息
         public List<string> LinkTail;//代码块尾部信息
 
         public string methodContent;
-        public string[] keyWord = { "^goto", "^if-", "^invoke-" ,"^.catch ", 
+        public string xmlPath;//导出的xml文件的绝对路径
+        public string[] keyWord = { "^goto", "^if-", "^invoke-" ,"^.catch", 
                                       "^packed-switch ","^sparse-switch ",
                                       "^.end packed-switch", "^.end sparse-switch","^:","^return"};
 
-        public method(string strMethod)
+        public method(string strMethod,string xmlPath)
         {
             this.methodContent = strMethod;
+            this.xmlPath = xmlPath;
             InstruBlock = new List<string>();
             borderIndex = new List<int>();
             LinkFunc = new List<string>();
@@ -36,18 +39,72 @@ namespace apk_CFG
             clearBlank();
             storeBlock();
             justLink();
+            exportXML();
+        }
+
+        //导出method 的xml文件
+        public void exportXML()
+        {
+            XmlDocument xml = new XmlDocument();
+
+            xml.AppendChild(xml.CreateXmlDeclaration("1.0", "UTF-8", null));
+            XmlElement graph = xml.CreateElement("Graph");            
+            XmlElement nodes = xml.CreateElement("Nodes");
+            XmlElement node; 
+            XmlAttribute id,name;
+            int i;
+            for (i = 0; i < InstruBlock.Count;i++ )
+            {
+                node = xml.CreateElement("Node");
+                id = xml.CreateAttribute("id");
+                id.Value = i+"" ;
+                name = xml.CreateAttribute("name");
+                name.Value = InstruBlock[i] ;
+                node.Attributes.Append(id);
+                node.Attributes.Append(name);
+                nodes.AppendChild(node);
+            }
+            xml.AppendChild(graph);
+            graph.AppendChild(nodes);
+            if (InstruBlock.Count != 1)//如果不止一个代码块
+            {
+                XmlElement links = xml.CreateElement("Links");
+                XmlElement link;
+                XmlAttribute origin, target, label;
+                for (i = 0; i < LinkFunc.Count; i++)
+                {
+                    string[] llkk = LinkFunc[i].Split('|');
+                    link = xml.CreateElement("Link");
+                    origin = xml.CreateAttribute("origin");
+                    origin.Value =  llkk[0] ;
+                    target = xml.CreateAttribute("target");
+                    target.Value = llkk[1] ;
+                    label = xml.CreateAttribute("label");
+                    label.Value = llkk[2] ;
+                    link.Attributes.Append(origin);
+                    link.Attributes.Append(target);
+                    link.Attributes.Append(label);
+                    links.AppendChild(link);
+                }
+                graph.AppendChild(links);
+            }
+            this.xmlPath += methodName + ".xml";
+            xml.Save(this.xmlPath);
         }
 
         //分析本method的名称
+        //将method中的 <>符号改成 ￥, \\ 改成%
         public void anaName()
         {
             int index, end;
             end = this.methodContent.IndexOf("\n");
             index = this.methodContent.LastIndexOf(" ", end);//LastIndexOf从开始的索引，逆向搜索
             this.methodName = this.methodContent.Substring(index + 1, end - index - 1);
+            this.methodName = this.methodName.Replace("<", "%");
+            this.methodName = this.methodName.Replace(">", "%");
+            this.methodName = this.methodName.Replace("/", "%");
         }
-
-
+        
         //去除method中多余的空格
         public void clearBlank()
         {
@@ -106,6 +163,11 @@ namespace apk_CFG
         public void storeBlock()
         {
             methodSplit();
+            if (borderIndex.Count == 0)//只有一个代码块的method，直接返回整个内容
+            {
+                InstruBlock.Add(this.methodContent);
+                return;
+            }
             int index = 0;
             foreach (int in_tmp in borderIndex)
             {
@@ -120,7 +182,7 @@ namespace apk_CFG
             if (finalBlock[finalBlock.Length - 1] != '\n')
             {
                 InstruBlock.RemoveAt(InstruBlock.Count -1);
-                InstruBlock.Add(finalBlock + "\r\n");//---------正式使用修改
+                InstruBlock.Add(finalBlock + "\n");//---------正式使用修改
             }
         }
 
@@ -129,6 +191,11 @@ namespace apk_CFG
         public void justLink()
         {
             gartherHeadTail();
+            if (InstruBlock.Count == 1)//只有一个代码块的method
+            {
+                LinkFunc.Add("-1|-1|single");//不进行任何连接操作
+                return;                
+            }
             int i,keySearch,k;
             string Tail;
             List<int> caseDefau = new List<int>();//default case 的跳转对象
@@ -209,7 +276,7 @@ namespace apk_CFG
         public int parseIf(string inCode)
         {
             string[] IFsub = inCode.Split(' ');
-            return LinkHead.IndexOf(IFsub[3]);
+            return LinkHead.IndexOf(IFsub[IFsub.Length-1]);
         }
         
         //解析invoke指令--待拓展
@@ -225,7 +292,7 @@ namespace apk_CFG
             string[] trySub = inTry.Split(' ');
             int catIndex = LinkHead.IndexOf(trySub[trySub.Length - 1]);
             string tmp = trySub[trySub.Length - 4];
-            string trystr = ":try_start_" + tmp[tmp.Length - 1] + "\r\n";//--正式待修改
+            string trystr = ":try_start_" + tmp[tmp.Length - 1] + "\n";//--正式待修改
             int tryIndex = LinkHead.IndexOf(trystr);
             int[] reint = { tryIndex, catIndex };
             return reint;
@@ -247,7 +314,7 @@ namespace apk_CFG
             int begCaseIndex = switBlock.IndexOf(".packed-switch");
             int endCaseIndex = switBlock.IndexOf("\n", begCaseIndex);
             string[] begCaseSub = switBlock.Substring(begCaseIndex, endCaseIndex - begCaseIndex).Split(' ');
-            begCaseSub[1] = begCaseSub[1].Remove(begCaseSub[1].Length - 1);
+            //begCaseSub[1] = begCaseSub[1].Remove(begCaseSub[1].Length - 1);
             int begNum = Convert.ToInt32(begCaseSub[1], 16);//获取case情况的起始数字
             List<string> caseName = new List<string>();
             string caseTmp = "";
@@ -278,8 +345,12 @@ namespace apk_CFG
             //跳过两条代码
             int index = switBlock.IndexOf("\n") + 1;
             int endindex = switBlock.IndexOf("\n", index)+1;
-            index = endindex;
-            endindex = switBlock.IndexOf("\n", index) + 1;
+            while (switBlock[index] != ' ')
+            {
+                index = endindex;
+                endindex = switBlock.IndexOf("\n", index) + 1;
+            }
+            
 
             string caseTmp = switBlock.Substring(index, endindex - index);
             int caseNum;
@@ -324,11 +395,24 @@ namespace apk_CFG
         //【测试】  正式读取修改
         public string getBlockLastCode(string input)
         {
-            int index = input.Length - 3;
+            int index = input.Length - 3,end;
             index = input.LastIndexOf("\n", index);
             if (index == -1) return input;//如果只有一行代码则返回自己本身
             string strTmp = input.Substring(index + 1, input.Length - index - 1);
-            if (strTmp[strTmp.Length - 1] != '\n') strTmp += "\r\n";//对最后一行代码的处理--正式修改
+
+            while (strTmp.IndexOf(".line") != -1 || strTmp.IndexOf(".end local") != -1)//当前行为.line，需要向上多读取一行
+            {
+                if (index == 0)//如果整个代码块都是无效代码，则任意赋予一个值
+                {
+                    strTmp = ".line\n";
+                    break;
+                }
+                end = index+1;
+                index = input.LastIndexOf("\n", index - 2)+1;
+                strTmp = input.Substring(index, end - index);
+            }
+                
+            if (strTmp[strTmp.Length - 1] != '\n') strTmp += "\n";//对最后一行代码的处理--正式修改                
             return strTmp;
         }
     
@@ -339,7 +423,8 @@ namespace apk_CFG
             end = input.IndexOf("\n")+1;
             end = end != -1 ? end : input.Length;//当分析的代码在最后一个的时候，返回这个处理
             string head = input.Substring(index, end - index);
-            if (head.IndexOf(".line") == -1) return head;//如果不是.line，即无效行，则返回获取的值
+            if (head.IndexOf(".line") == -1) return head;//如果不是.line，即有效行，则返回获取的值
+            //反之，当前为.line，需要向下面多读取一行
             index = end;
             end = input.IndexOf("\n", end) + 1;
             head = input.Substring(index, end - index);
