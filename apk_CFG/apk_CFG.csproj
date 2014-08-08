@@ -53,6 +53,8 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="apkOfAllSmali.cs" />
+    <Compile Include="ExportXML.cs" />
     <Compile Include="method.cs" />
     <Compile Include="smaliFile.cs" />
     <Page Include="MainWindow.xaml">

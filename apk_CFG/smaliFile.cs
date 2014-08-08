@@ -9,7 +9,7 @@ namespace apk_CFG
 {
     public class smaliFile
     {
-        public string ClassName;
+        public string ClassName;//类名称：Lcom/droider/circulate/MainActivity;
         public string SuperClassName;
         public string SourceName;
         public List<string> Annotations;
@@ -18,7 +18,7 @@ namespace apk_CFG
         public List<string> Interfaces;
         public List<string> Direct_Method;
         public List<string> Virt_Method;
-        public List<method> methodCfg;
+        public List<method> methodCfg;//每个分析好的函数
 
         public string smali_path;
         public string FileContent;
@@ -91,6 +91,8 @@ namespace apk_CFG
                 end = this.FileContent.IndexOf("\n");
                 index += 7;
                 this.ClassName = this.FileContent.Substring(index, end - index);
+                string[] classSub = ClassName.Split(' ');
+                ClassName = classSub[classSub.Length-1];
             }
             end = index;
             index = this.FileContent.IndexOf(".super", index);

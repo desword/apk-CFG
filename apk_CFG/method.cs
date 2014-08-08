@@ -9,7 +9,8 @@ namespace apk_CFG
 {
     public class method
     {
-        public string methodName;
+        public string methodName;//方法名称： dowhileCirculate()V ，<init>()V
+        public string storeMethodName;//改成合法文件名的方法名称
         public List<string> localVar;
         public List<string> paraVar;        
         public List<int> borderIndex;//代码块的起始下标
@@ -21,9 +22,9 @@ namespace apk_CFG
 
         public string methodContent;
         public string xmlPath;//导出的xml文件的绝对路径
-        public string[] keyWord = { "^goto", "^if-", "^invoke-" ,"^.catch", 
+        public string[] keyWord = { "^goto", "^if-", "^invoke-" ,"^\\.catch", // "."代表除\n外的所有字符，所以必须转义
                                       "^packed-switch ","^sparse-switch ",
-                                      "^.end packed-switch", "^.end sparse-switch","^:","^return"};
+                                      "^\\.end packed-switch", "^\\.end sparse-switch","^:","^return"};
 
         public method(string strMethod,string xmlPath)
         {
@@ -39,7 +40,8 @@ namespace apk_CFG
             clearBlank();
             storeBlock();
             justLink();
-            exportXML();
+            ExportXML.exportXML(xmlPath, storeMethodName,InstruBlock, LinkFunc);
+            //exportXML();
         }
 
         //导出method 的xml文件
@@ -88,7 +90,7 @@ namespace apk_CFG
                 }
                 graph.AppendChild(links);
             }
-            this.xmlPath += methodName + ".xml";
+            this.xmlPath += storeMethodName + ".xml";
             xml.Save(this.xmlPath);
         }
 
@@ -99,10 +101,10 @@ namespace apk_CFG
             int index, end;
             end = this.methodContent.IndexOf("\n");
             index = this.methodContent.LastIndexOf(" ", end);//LastIndexOf从开始的索引，逆向搜索
-            this.methodName = this.methodContent.Substring(index + 1, end - index - 1);
-            this.methodName = this.methodName.Replace("<", "%");
-            this.methodName = this.methodName.Replace(">", "%");
-            this.methodName = this.methodName.Replace("/", "%");
+            storeMethodName = this.methodName = this.methodContent.Substring(index + 1, end - index - 1);
+            this.storeMethodName = this.storeMethodName.Replace("<", "%");
+            this.storeMethodName = this.storeMethodName.Replace(">", "%");
+            this.storeMethodName = this.storeMethodName.Replace("/", "%");
         }
         
         //去除method中多余的空格
@@ -211,7 +213,8 @@ namespace apk_CFG
                 }
                 //本代码块为return，不做任何链接
                 if (keySearch == keyWord.Length - 1) continue;
-                if (keySearch == keyWord.Length)//下一个代码块有:标示符
+                //[不一定是有的]  下一个代码块有:标示符。   对于没有考虑的情况，都采取不作为的处理
+                if (keySearch == keyWord.Length && (i+1)<=LinkHead.Count-1)
                 { 
                     k= i+1;
                     LinkFunc.Add(i + "|" + k + "|" + "cont");
@@ -285,7 +288,9 @@ namespace apk_CFG
             
         }
 
-        //解析try/catch指令--   存在try 跳转方向的疑问。这里将try指令 指向了try_start的地方
+        //解析try/catch指令--   
+        //[存在try 跳转方向的疑问。这里将try指令 指向了try_start的地方]
+        //----[存在throw的情况没有分析，  有的throw有catch，  有的没有catch]
         //[测试]，正式修改
         public int[] parseTry(string inTry)
         {
