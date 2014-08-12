@@ -24,11 +24,16 @@ namespace apk_CFG
             ConstomNode = new List<string>();
             CrossMethodNode = new List<string>();
 
-            CreatoutputFolder();
+            CreatoutputFolder();            
             WalkAllSmaliFile(inputFilePath + "\\smali");//直接进入smali文件夹
             CreateConstmNode();
-            MethodCrossLink();
-            ExportXML.exportXML(outputFilePath, FName,ConstomNode, CrossMethodNode);
+            //添加跨类调用的函数分析
+            MethodCrossWithCFGLink();
+            exportAllXml();
+
+            //构造非详细call调用的method分析
+            //MethodCrossLink();
+            //ExportXML.exportXML(outputFilePath, FName,ConstomNode, CrossMethodNode);
         }
 
         //创建分析的目标文件夹
@@ -49,6 +54,7 @@ namespace apk_CFG
         }
 
         //遍历文件夹下面每个smali文件，构造smaliFile。
+        public Thread addSmali;
         public void WalkAllSmaliFile(string inputPath)
         {
             int isAndroid = inputPath.LastIndexOf("\\", inputPath.Length - 1);
@@ -62,7 +68,15 @@ namespace apk_CFG
                     if (System.IO.Directory.Exists(d))//如果当前的是文件夹，则递归
                         WalkAllSmaliFile(d);
                     else if (dotIndex != -1 && d.Substring(dotIndex, d.Length - dotIndex) == ".smali")//如果是smali文件，则建立smaliFile类型
-                        AllSmaliFile.Add(new smaliFile(d, outputFilePath));              
+                        AllSmaliFile.Add(new smaliFile(d, outputFilePath));        
+                    
+                    //{
+                        //线程的同步问题----
+                    //    addSmali = new Thread(new ParameterizedThreadStart(doAddsmali));
+                    //    addSmali.Start(d);
+                    //}
+                        
+                        //AllSmaliFile.Add(new smaliFile(d, outputFilePath));              
                         
                     //{
                     //    ThreadStart starter = delegate { doAddsmali(d); };
@@ -73,9 +87,9 @@ namespace apk_CFG
             }   
         }
 
-        private void doAddsmali(string d)
+        private void doAddsmali(object d)
         {
-            AllSmaliFile.Add(new smaliFile(d, outputFilePath));
+            AllSmaliFile.Add(new smaliFile(d.ToString(), outputFilePath));
         }
 
         //构造交叉函数引用的结点，结点都为用户自定义函数
@@ -97,7 +111,43 @@ namespace apk_CFG
             countOfConstomNode = ConstomNode.Count;
         }
     
-        //分析每个函数中的invoke，构造函数交叉调用图
+        //1、[结合cfg的 method cross invoke]
+        //分析ConstomNode，以及每个方法的LinkFuc， 对于有Onreturn标志的值，分析起点代码块的invoke函数部分
+        //如果函数是自定义函数，则显示call， 反之显示system call。  
+        public void MethodCrossWithCFGLink()
+        {
+            string invokeMethod;
+            string[] InvokeInfoSub;
+            int indexOfconstomMethod;
+            int i;
+            foreach( smaliFile smTmp in AllSmaliFile)
+            {
+                foreach (method methodTmp in smTmp.methodCfg)
+                {
+                    for (i=0 ;i < methodTmp.LinkTail.Count ; i++) 
+                    {
+                        if (methodTmp.LinkTail[i].IndexOf("invoke-") != -1)
+                        {
+                            InvokeInfoSub = methodTmp.LinkTail[i].Split(' ');
+                            invokeMethod = InvokeInfoSub[InvokeInfoSub.Length-1];//获取调用函数的名称
+                            methodTmp.InstruBlock.Add(invokeMethod);//将函数结点添加进去
+
+                            indexOfconstomMethod = ConstomNode.IndexOf(invokeMethod);
+                            if (indexOfconstomMethod != -1)//如果调用的是自定义的函数，则添加call link
+                            {
+                                methodTmp.LinkFunc.Add(i + "|" + (methodTmp.InstruBlock.Count - 1) + "|call");
+                            }
+                            else//反之，是系统定义函数，则添加system call link
+                            {
+                                methodTmp.LinkFunc.Add(i + "|" + (methodTmp.InstruBlock.Count - 1) + "|system call");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        //2、[纯method cross invoke]分析每个函数中的invoke，构造函数交叉调用图
         public void MethodCrossLink()
         {
             string invokeMethod;
@@ -130,6 +180,18 @@ namespace apk_CFG
                         }
                     }
                     begId++;
+                }
+            }
+        }
+    
+        //导出所有文件的method的xml
+        public void exportAllXml()
+        {
+            foreach (smaliFile smTmp in AllSmaliFile)
+            {
+                foreach (method methodTmp in smTmp.methodCfg)
+                {
+                    ExportXML.exportXML(methodTmp.xmlPath, methodTmp.storeMethodName,methodTmp.InstruBlock, methodTmp.LinkFunc);
                 }
             }
         }

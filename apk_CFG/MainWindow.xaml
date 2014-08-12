@@ -1,7 +1,7 @@
 ﻿<Window x:Class="apk_CFG.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MainWindow" Height="668" Width="800" xmlns:diag="http://mindfusion.eu/diagramming/wpf">
+        Title="MainWindow" Height="668" Width="800" xmlns:diag="http://mindfusion.eu/diagramming/wpf" DragEnter="drag_enter">
     <Grid>
         
         <Button Content="Button" Height="30" HorizontalAlignment="Left" Margin="25,14,0,0" Name="load" VerticalAlignment="Top" Width="116" Click="load_Click" />
@@ -12,10 +12,10 @@
 				BackBrush="White"				
 				ShapeBrush="LightBlue"
 				DefaultShape="Rectangle"
-				AllowDrop="True" HorizontalContentAlignment="Stretch" />            
+				AllowDrop="True" HorizontalContentAlignment="Stretch"  />            
         </ScrollViewer>
         <Button Content="FileFold" Height="30" HorizontalAlignment="Left" Margin="642,18,0,0" Name="openFileFold" VerticalAlignment="Top" Width="115" Click="openFileFold_Click" />
         <ListView Height="557" HorizontalAlignment="Left" Margin="0,72,0,0" Name="listView1" VerticalAlignment="Top" Width="194" SelectionChanged="lv_selectionChanged" />
-        <ProgressBar Height="20" HorizontalAlignment="Left" Margin="228,21,0,0" Name="progressBar1" VerticalAlignment="Top" Width="371" Visibility="Hidden" />
+        <ProgressBar Height="10" HorizontalAlignment="Left" Margin="544,37,0,0" Name="progressBar1" VerticalAlignment="Top" Width="89" Visibility="Hidden" />
     </Grid>
 </Window>

@@ -17,6 +17,7 @@ using MindFusion.Diagramming.Wpf;
 using System.Xml.Linq;
 using MindFusion.Diagramming.Wpf.Layout;
 using System.Threading;
+using System.Windows.Threading;
 
 namespace apk_CFG
 {
@@ -41,7 +42,7 @@ namespace apk_CFG
         public string smaliPath;
         //整个apk，反编译后smali文件夹解决方案
         public string destPath;
-        public apkOfAllSmali allSmali;
+        public apkOfAllSmali allSmali = null;
         public string outputPath;//最终分析结果目录
         public string outFileName;//建立的文件夹名称
         public List<SmaliMeta> listViewContent;
@@ -49,13 +50,13 @@ namespace apk_CFG
         //线程
         private Thread updateListView = null;
         private Thread updatePgr = null;
-        private bool isOk = false;
-        private delegate void UpdatePBarUI();
+        private Thread updateSelect = null;//选择项目处理的线程
+        private bool isOk = false;//是否处理完成的标记
 
         public MainWindow()
         {
             InitializeComponent();
-
+            diagram.Behavior = Behavior.Modify;//设置不能新建结点
             listViewContent = new List<SmaliMeta>();
         }
 
@@ -141,13 +142,12 @@ namespace apk_CFG
                 {
                     if (System.IO.Directory.Exists(d))//如果当前的是文件夹，则递归
                         walkEveryXml(d);
-                    else//如果是xml文件，则加入到listview中
+                    else if (d.Substring(d.LastIndexOf(".", d.Length - 1), d.Length - d.LastIndexOf(".", d.Length - 1)) == ".xml")   //如果是xml文件，则加入到listview中
                     {
                         FNindex = d.IndexOf(outFileName);
                         FNindex = FNindex + outFileName.Length + 1;
                         getFileName = d.Substring(FNindex, d.Length - FNindex);
                         SmaliMeta smTmp = new SmaliMeta(getFileName, d);
-                        //listView1.Items.Add(smTmp);
                         listViewContent.Insert(0, smTmp);
                         listView1.Items.Insert(0, smTmp.showName);
                     }
@@ -155,12 +155,13 @@ namespace apk_CFG
             }  
         }
 
-        public void DrawGraph(string xmlPath)
+        public void DrawGraph(object xmlPaths)
         {
             //使用之前，先全部清理掉
+            string xmlPath = xmlPaths as string;
             diagram.ClearAll();
             var nodeMap = new Dictionary<string, DiagramNode>();
-            var bounds = new Rect(30, 30, 300, 50);
+            var bounds = new Rect(30, 30, 10, 2);
 
             // load the graph xml
             var xml = XDocument.Load(xmlPath);
@@ -171,8 +172,12 @@ namespace apk_CFG
             foreach (var node in nodes)
             {
                 var diagramNode = diagram.Factory.CreateShapeNode(bounds);
+
                 nodeMap[node.Attribute("id").Value] = diagramNode;
                 diagramNode.Text = node.Attribute("name").Value;
+                //--调整结点大小以显示全部内容，必须放在设置了内容值之后
+                diagramNode.ResizeToFitText(FitSize.KeepRatio);
+                diagramNode.TextAlignment = TextAlignment.Left;
             }
 
             // load link data
@@ -187,7 +192,10 @@ namespace apk_CFG
             
             // arrange the graph
             var layout = new LayeredLayout();
+            layout.IgnoreNodeSize = false;//使得结点不会覆盖显示 
             layout.Arrange(diagram);
+            layout.Orientation = MindFusion.Diagramming.Wpf.Layout.Orientation.Vertical;
+
         }
           
         private void openFileFold_Click(object sender, RoutedEventArgs e)
@@ -204,55 +212,93 @@ namespace apk_CFG
             //ergodicFile();
             
             updateListView = new Thread(ergodicFile);
-            if (updateListView.ThreadState == ThreadState.Running)
-                updateListView.Abort();
             updateListView.Start();
-
-            /*
             updatePgr = new Thread(doWork);
-            if (updatePgr.ThreadState == ThreadState.Running)
-                updatePgr.Abort();
-            updatePgr.Start();*/
-            //DrawGraph(outputPath + "\\Circulate.xml");
+            updatePgr.Start();
+            
         }
 
         //多线程，更新进度条
         private void doWork()
         {
-            UpdatePBarUI up = new UpdatePBarUI(pgr);
-            Dispatcher.Invoke(up);
-        }
-        protected void pgr()
-        {
-            int count = 0;
-            progressBar1.Visibility = Visibility.Visible;
-            progressBar1.Value = 0;
-            while (isOk == false)
+            int count = 0;  
+            while(true)
             {
-                if (allSmali.AllSmaliFile.Count > count)
-                {
-                    count = allSmali.AllSmaliFile.Count;
-                    progressBar1.Value++;
-                }
-            }
-            progressBar1.Visibility = Visibility.Hidden;
+                progressBar1.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
+                    new Action<int>(pgr), count);
+                count++;
+                Thread.Sleep(10);                              
+            }            
+        }
+        protected void pgr(int count)
+        {
+            if (count == 0)//第一次载入，则显示进度条
+            {
+                progressBar1.Visibility = Visibility.Visible;
+                progressBar1.Value = 0;
+            }                
+            progressBar1.Value++;
+            if (isOk == true)//当处理完毕，就隐藏进度条
+            {
+                progressBar1.Visibility = Visibility.Hidden;
+                updatePgr.Abort();
+            }                
+            if (progressBar1.Value == progressBar1.Maximum)//如果进度条达到最大值
+                progressBar1.Value = 0;
         }
 
         //多线程，遍历所有smali文件
         private void ergodicFile()
         {
             allSmali = new apkOfAllSmali(destPath);
-
             outputPath = allSmali.outputFilePath;
             outFileName = allSmali.FName;
+            
+            listView1.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
+                new Action<string>(walkEveryXml), outputPath);
             isOk = true;
-            walkEveryXml(outputPath);
+            updateListView.Abort();
         }
 
         private void lv_selectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            
             if (listView1.SelectedIndex != -1)
-                DrawGraph(listViewContent[listView1.SelectedIndex].smaliPath);
+            {
+                this.diagram.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
+                    new Action<object>(DrawGraph), listViewContent[listView1.SelectedIndex].smaliPath);                
+                //DrawGraph(listViewContent[listView1.SelectedIndex].smaliPath);                
+            }
+                
+        }
+
+        //判断是否存在对应的文件夹
+        private bool isExistFoler()
+        {
+            int NameINdex = destPath.LastIndexOf("\\", destPath.Length - 1)+1;
+            outFileName = destPath.Substring(NameINdex, destPath.Length - NameINdex);
+            //outputFilePath = Directory.GetCurrentDirectory() + "\\" + FName;
+            outputPath = AppDomain.CurrentDomain.BaseDirectory + outFileName;
+            return Directory.Exists(outputPath);                    
+        }
+        private void drag_enter(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+                e.Effects = DragDropEffects.Link;                            //WinForm中为e.Effect = DragDropEffects.Link
+            else e.Effects = DragDropEffects.None;                      //WinFrom中为e.Effect = DragDropEffects.None
+            destPath = ((System.Array)e.Data.GetData(DataFormats.FileDrop)).GetValue(0).ToString();
+            if (destPath == "")
+            {
+                MessageBox.Show("请选择文件夹！！");
+                return;
+            }
+
+            listView1.Items.Clear();
+            listViewContent.Clear();
+            if ( !isExistFoler())//如果不存在文件夹，则分析文件
+                allSmali = new apkOfAllSmali(destPath);            
+            //isOk = true;
+            walkEveryXml(outputPath);
         }
     }
 }

@@ -40,7 +40,7 @@ namespace apk_CFG
             clearBlank();
             storeBlock();
             justLink();
-            ExportXML.exportXML(xmlPath, storeMethodName,InstruBlock, LinkFunc);
+           // ExportXML.exportXML(xmlPath, storeMethodName,InstruBlock, LinkFunc);
             //exportXML();
         }
 
