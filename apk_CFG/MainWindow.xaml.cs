@@ -51,12 +51,15 @@ namespace apk_CFG
         private Thread updateListView = null;
         private Thread updatePgr = null;
         private Thread updateSelect = null;//选择项目处理的线程
+        private Thread updageShowtext = null;//显示信息线程
         private bool isOk = false;//是否处理完成的标记
 
         public MainWindow()
         {
             InitializeComponent();
             diagram.Behavior = Behavior.Modify;//设置不能新建结点
+            overview1.Document = diagram;
+            overview1.FitAll = true;
             listViewContent = new List<SmaliMeta>();
         }
 
@@ -210,14 +213,30 @@ namespace apk_CFG
             listView1.Items.Clear();
             listViewContent.Clear();
             //ergodicFile();
-            
+            show.Visibility = Visibility.Visible;
+            show.Text = "正在分析中...";
             updateListView = new Thread(ergodicFile);
             updateListView.Start();
             updatePgr = new Thread(doWork);
             updatePgr.Start();
+            //updageShowtext = new Thread(showText);
+            //updageShowtext.Start();
             
         }
 
+        //更新显示信息
+        private void chgShow(int count)
+        {
+            string[] showtxt = { "正在分析中.", "正在分析中..", "正在分析中..." };
+            
+            if (isOk == false)
+            {
+                show.Text = showtxt[count % 3];
+            }
+            if( isOk == true)
+                show.Visibility = Visibility.Hidden;
+        }
+        
         //多线程，更新进度条
         private void doWork()
         {
@@ -226,6 +245,8 @@ namespace apk_CFG
             {
                 progressBar1.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
                     new Action<int>(pgr), count);
+                show.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
+                    new Action<int>(chgShow), count);
                 count++;
                 Thread.Sleep(10);                              
             }            

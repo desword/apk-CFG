@@ -28,13 +28,16 @@ namespace apk_CFG
             WalkAllSmaliFile(inputFilePath + "\\smali");//直接进入smali文件夹
             CreateConstmNode();
             //添加跨类调用的函数分析
-            MethodCrossWithCFGLink();
-            exportAllXml();
+            //MethodCrossWithCFGLink();
+            //exportAllXml();
 
             //构造非详细call调用的method分析
-            //MethodCrossLink();
-            //ExportXML.exportXML(outputFilePath, FName,ConstomNode, CrossMethodNode);
+            MethodCrossLink();
+            ExportXML.exportXML(outputFilePath, FName,ConstomNode, CrossMethodNode);
         }
+
+        ~apkOfAllSmali()
+        { }
 
         //创建分析的目标文件夹
         //【缺少对已经存在文件夹的判断】

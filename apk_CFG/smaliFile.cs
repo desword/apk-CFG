@@ -240,6 +240,7 @@ namespace apk_CFG
                     index += 8;
                     string tmp = this.FileContent.Substring(index, end - index);
                     this.Virt_Method.Add(tmp);
+                    if (finalend < end) finalend = this.FileContent.IndexOf("# ", end);//如果匹配到的是注释符号，则继续向下面搜索
                     index = this.FileContent.IndexOf(".method", end, finalend - end);
                 }
             }

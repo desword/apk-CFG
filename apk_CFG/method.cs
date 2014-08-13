@@ -40,9 +40,12 @@ namespace apk_CFG
             clearBlank();
             storeBlock();
             justLink();
-           // ExportXML.exportXML(xmlPath, storeMethodName,InstruBlock, LinkFunc);
+            ExportXML.exportXML(xmlPath, storeMethodName,InstruBlock, LinkFunc);
             //exportXML();
         }
+
+        ~method()
+        { }
 
         //导出method 的xml文件
         public void exportXML()
@@ -320,7 +323,13 @@ namespace apk_CFG
             int endCaseIndex = switBlock.IndexOf("\n", begCaseIndex);
             string[] begCaseSub = switBlock.Substring(begCaseIndex, endCaseIndex - begCaseIndex).Split(' ');
             //begCaseSub[1] = begCaseSub[1].Remove(begCaseSub[1].Length - 1);
-            int begNum = Convert.ToInt32(begCaseSub[1], 16);//获取case情况的起始数字
+            int maybeNeg = 1;
+            if (begCaseSub[1].ToString()[0] == '-')//如果十六进制的第一个是 - 号，则去掉负号进行处理
+            {
+                maybeNeg = -1;
+                begCaseSub[1] = begCaseSub[1].Remove(0, 1);
+            }
+            int begNum = Convert.ToInt32(begCaseSub[1], 16) * maybeNeg;//获取case情况的起始数字
             List<string> caseName = new List<string>();
             string caseTmp = "";
             int index,endIndex = endCaseIndex+1;
@@ -365,7 +374,13 @@ namespace apk_CFG
             {
                 caseTmp = caseTmp.Remove(0, 4);
                 caseTmpsub = caseTmp.Split(' ');
-                caseNum = Convert.ToInt32(caseTmpsub[0], 16);//test!!!
+                int maybeNeg = 1;
+                if (caseTmpsub[0].ToString()[0] == '-')//如果十六进制的第一个是 - 号，则去掉负号进行处理
+                {
+                    maybeNeg = -1;
+                    caseTmpsub[0] = caseTmpsub[0].Remove(0, 1);
+                }
+                caseNum = Convert.ToInt32(caseTmpsub[0], 16) * maybeNeg;//test!!!
                 caseName.Add(currentPoi + "|" + LinkHead.IndexOf(caseTmpsub[caseTmpsub.Length - 1]) + "|case " + caseNum);
                 index = endindex;
                 endindex = switBlock.IndexOf("\n", index)+1;

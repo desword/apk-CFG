@@ -8,6 +8,7 @@ namespace apk_CFG
 {
     public class ExportXML
     {
+        public static int count = 1;
         public static void exportXML(string outputPath,string FileName,List<string> Node,List<string>  LinkNode)
         {
             XmlDocument xml = new XmlDocument();
@@ -53,6 +54,11 @@ namespace apk_CFG
                 }
                 graph.AppendChild(links);
             }
+            if (FileName.Length > 120)
+            {
+                FileName = "~" + count;
+                count++;
+            }                
             xml.Save(outputPath + FileName + ".xml");
         }
     }
