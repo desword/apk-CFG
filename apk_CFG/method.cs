@@ -10,104 +10,96 @@ namespace apk_CFG
     public class method
     {
         public string methodName;//方法名称： dowhileCirculate()V ，<init>()V
-        public string storeMethodName;//改成合法文件名的方法名称
-        public List<string> localVar;
-        public List<string> paraVar;        
+        public string storeMethodName;//改成合法文件名的方法名称     
         public List<int> borderIndex;//代码块的起始下标
         public List<string> InstruBlock;//代码指令块
+        public string locals;//.locals 区域的信息 num|hang
+        public string begendInfo;// method块的 开始和结束的行号 sourpath|beg|end|[end]多个end
+        public List<int> keyWordHang;//记录if，goto语句的行号
 
         public List<string> LinkFunc;//起点|终点|显示信息  -- 显示信息为single时，不进行任何连接操作
         public List<string> LinkHead;//代码块头部信息
         public List<string> LinkTail;//代码块尾部信息
 
-        public string methodContent;
+        public string methodContent;//method 内容
         public string xmlPath;//导出的xml文件的绝对路径
+        public string SourceSmaliPath;
+        public int startH;
         public string[] keyWord = { "^goto", "^if-", "^invoke-" ,"^\\.catch", // "."代表除\n外的所有字符，所以必须转义
                                       "^packed-switch ","^sparse-switch ",
                                       "^\\.end packed-switch", "^\\.end sparse-switch","^:","^return"};
-
-        public method(string strMethod,string xmlPath)
+        //sourceSmaliPath: 待分析的源smali文件的位置，即类的位置
+        //startHang:在源文件中的起始行数
+        public method(string strMethod,string xmlPath,string sourceSmaliPath, int startHang)
         {
             this.methodContent = strMethod;
-            this.xmlPath = xmlPath;
+            this.xmlPath = xmlPath;// D:\Documents\GitHub\apk-CFG\apk_CFG\bin\Debug\smaliFile\[MainActivity]
+            this.SourceSmaliPath = sourceSmaliPath;
+            this.startH = startHang;
             InstruBlock = new List<string>();
             borderIndex = new List<int>();
             LinkFunc = new List<string>();
             LinkHead = new List<string>();
-            LinkTail = new List<string>();                 
+            LinkTail = new List<string>();
+            keyWordHang = new List<int>();
 
+            anaLocalBegEndInfo();
             anaName();
             clearBlank();
             storeBlock();
             justLink();
-            ExportXML.exportXML(xmlPath, storeMethodName,InstruBlock, LinkFunc);
+            ExportXML.exportXML(xmlPath, storeMethodName, InstruBlock, LinkFunc, begendInfo,locals);
             //exportXML();
         }
 
         ~method()
         { }
 
-        //导出method 的xml文件
-        public void exportXML()
+        //分析method中source,locals ，.prologue, return-的行号
+        public void anaLocalBegEndInfo()
         {
-            XmlDocument xml = new XmlDocument();
-
-            xml.AppendChild(xml.CreateXmlDeclaration("1.0", "UTF-8", null));
-            XmlElement graph = xml.CreateElement("Graph");            
-            XmlElement nodes = xml.CreateElement("Nodes");
-            XmlElement node; 
-            XmlAttribute id,name;
-            int i;
-            for (i = 0; i < InstruBlock.Count;i++ )
+            int index=0, end=0;
+            int st=0,lo;
+            List<int> ter = new List<int>();
+            int count=0;
+            string toJudge;
+            //Regex r = new Regex("^    goto", RegexOptions.Compiled); ;
+            while (end != -1 && index < methodContent.Length)
             {
-                node = xml.CreateElement("Node");
-                id = xml.CreateAttribute("id");
-                id.Value = i+"" ;
-                name = xml.CreateAttribute("name");
-                name.Value = InstruBlock[i] ;
-                node.Attributes.Append(id);
-                node.Attributes.Append(name);
-                nodes.AppendChild(node);
-            }
-            xml.AppendChild(graph);
-            graph.AppendChild(nodes);
-            if (InstruBlock.Count != 1)//如果不止一个代码块
-            {
-                XmlElement links = xml.CreateElement("Links");
-                XmlElement link;
-                XmlAttribute origin, target, label;
-                for (i = 0; i < LinkFunc.Count; i++)
+                end = methodContent.IndexOf("\n", index);
+                toJudge = methodContent.Substring(index, end - index);
+                if (toJudge.IndexOf(".locals") != -1)//将locals信息记录
                 {
-                    string[] llkk = LinkFunc[i].Split('|');
-                    link = xml.CreateElement("Link");
-                    origin = xml.CreateAttribute("origin");
-                    origin.Value =  llkk[0] ;
-                    target = xml.CreateAttribute("target");
-                    target.Value = llkk[1] ;
-                    label = xml.CreateAttribute("label");
-                    label.Value = llkk[2] ;
-                    link.Attributes.Append(origin);
-                    link.Attributes.Append(target);
-                    link.Attributes.Append(label);
-                    links.AppendChild(link);
+                    string[] localsub = toJudge.Split(' ');
+                    lo = (this.startH + count);
+                    locals = localsub[localsub.Length - 1] + "|"+lo ;
                 }
-                graph.AppendChild(links);
+                else if (toJudge.IndexOf(".prologue") != -1)//将.prologue信息记录，即开始行号
+                    st = this.startH + count;
+                else if (toJudge.IndexOf("return") != -1)//结束的行号
+                    ter.Add(this.startH + count);
+                else if (toJudge.IndexOf("if-") != -1 || toJudge.IndexOf(" goto") !=-1)//匹配if和goto关键字行号,r.IsMatch(toJudge)
+                    keyWordHang.Add(this.startH + count);
+                count++;
+                index = end + 1;
             }
-            this.xmlPath += storeMethodName + ".xml";
-            xml.Save(this.xmlPath);
+            begendInfo = this.SourceSmaliPath + "|" + st;//source ,beg ,end info
+            foreach (int tertmp in ter)
+                begendInfo += ("|" + tertmp);
+            
         }
 
         //分析本method的名称
-        //将method中的 <>符号改成 ￥, \\ 改成%
+        //将method中的 <>符号改成 ￥, \\ 改成_
         public void anaName()
         {
             int index, end;
             end = this.methodContent.IndexOf("\n");
             index = this.methodContent.LastIndexOf(" ", end);//LastIndexOf从开始的索引，逆向搜索
             storeMethodName = this.methodName = this.methodContent.Substring(index + 1, end - index - 1);
-            this.storeMethodName = this.storeMethodName.Replace("<", "%");
-            this.storeMethodName = this.storeMethodName.Replace(">", "%");
-            this.storeMethodName = this.storeMethodName.Replace("/", "%");
+            this.storeMethodName = this.storeMethodName.Replace("<", "_");
+            this.storeMethodName = this.storeMethodName.Replace(">", "_");
+            this.storeMethodName = this.storeMethodName.Replace("/", "_");
         }
         
         //去除method中多余的空格
@@ -146,8 +138,12 @@ namespace apk_CFG
                 {
                     r = new Regex(keyWord[i], RegexOptions.Compiled);
                     if (r.IsMatch(tmp))
+                    {
                         border_tmp.Add(index + tmp.Length);
+                        break;
+                    }                        
                 }
+
                 //判断 : 标号
                 r = new Regex(keyWord[keyWord.Length-2], RegexOptions.Compiled);                    
                 if (r.IsMatch(tmp))
@@ -168,15 +164,22 @@ namespace apk_CFG
         public void storeBlock()
         {
             methodSplit();
+            
             if (borderIndex.Count == 0)//只有一个代码块的method，直接返回整个内容
             {
                 InstruBlock.Add(this.methodContent);
                 return;
             }
             int index = 0;
+            string blockTmp;
+            int indexOfhang=0;//行号数组的下标记录
+            //Regex r = new Regex("^goto", RegexOptions.Compiled);
             foreach (int in_tmp in borderIndex)
             {
-                InstruBlock.Add(this.methodContent.Substring(index, in_tmp - index));
+                blockTmp = this.methodContent.Substring(index, in_tmp - index);
+                if (blockTmp.IndexOf("if-") != -1 || blockTmp.IndexOf("\ngoto") != -1)//如果代码块中有goto或者if，那么加上对应的行号
+                    blockTmp += ("|" + keyWordHang[indexOfhang++]);
+                InstruBlock.Add(blockTmp);
                 index = in_tmp;
             }
             //如果最后一个分界点不是字符串尾部
@@ -201,6 +204,7 @@ namespace apk_CFG
                 LinkFunc.Add("-1|-1|single");//不进行任何连接操作
                 return;                
             }
+            string[] block;
             int i,keySearch,k;
             string Tail;
             List<int> caseDefau = new List<int>();//default case 的跳转对象
@@ -257,13 +261,15 @@ namespace apk_CFG
                 {
                     //----List传入可以改变数据,ok
                     //----int 转换的测试,ok
-                    List<string> caseName = parseSwitchCase(InstruBlock[i], i, caseDefau);
+                    block = InstruBlock[i].Split('|');
+                    List<string> caseName = parseSwitchCase(block[0], i, caseDefau);
                     foreach (string incase in caseName)
                         LinkFunc.Add(incase);
                 }
                 else if (keySearch == 7)//解析.end sparse-switch
                 {
-                    List<string> caseName = parseSwitchSparseCase(InstruBlock[i], i, caseDefau);
+                    block = InstruBlock[i].Split('|');
+                    List<string> caseName = parseSwitchSparseCase(block[0], i, caseDefau);
                     foreach (string incase in caseName)
                         LinkFunc.Add(incase);
                 }
@@ -396,10 +402,12 @@ namespace apk_CFG
         public void gartherHeadTail()
         {
             int i;
+            string[] blocksub;
             for (i = 0; i < this.InstruBlock.Count; i++)
             {
-                LinkTail.Add(getBlockLastCode(InstruBlock[i]));
-                LinkHead.Add(getBlockHeadCode(InstruBlock[i]));
+                blocksub = InstruBlock[i].Split('|');
+                LinkTail.Add(getBlockLastCode(blocksub[0]));
+                LinkHead.Add(getBlockHeadCode(blocksub[0]));
             }
         }
 

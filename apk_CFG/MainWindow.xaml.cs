@@ -36,9 +36,8 @@ namespace apk_CFG
                 smaliPath = SP;
             }
         }
-        //单独的smali文件解析方案
+        //单独的smali文件解析方案    
         public smaliFile sf;
-        public List<method> me;        
         public string smaliPath;
         //整个apk，反编译后smali文件夹解决方案
         public string destPath;
@@ -46,64 +45,55 @@ namespace apk_CFG
         public string outputPath;//最终分析结果目录
         public string outFileName;//建立的文件夹名称
         public List<SmaliMeta> listViewContent;
-
+        //分析xml文件
+        public string xmlPath;
         //线程
         private Thread updateListView = null;
         private Thread updatePgr = null;
         private Thread updateSelect = null;//选择项目处理的线程
-        private Thread updageShowtext = null;//显示信息线程
         private bool isOk = false;//是否处理完成的标记
 
         public MainWindow()
         {
             InitializeComponent();
             diagram.Behavior = Behavior.Modify;//设置不能新建结点
-            overview1.Document = diagram;
-            overview1.FitAll = true;
+            overview1.Document = diagram;//设置overview的指向
+            overview1.FitAll = true;//设置overview显示全部diagram
+            outputPath = AppDomain.CurrentDomain.BaseDirectory + outFileName;//获取程序启动的路径
             listViewContent = new List<SmaliMeta>();
         }
-
-        public string openFile()
+       
+        //读入单个的smali文件，并分析
+        private void load_Click(object sender, RoutedEventArgs e)
         {
+            smaliPath = "";
             OpenFileDialog openFileDialog = new OpenFileDialog();
             openFileDialog.InitialDirectory = "c://";
-            openFileDialog.Filter = "All File|*.*|apk File|*.apk";
+            openFileDialog.Filter = "All File|*.*|smali File|*.smali";
             openFileDialog.RestoreDirectory = true;
             openFileDialog.FilterIndex = 1;
             if (openFileDialog.ShowDialog() == true)
-            {
-                return openFileDialog.FileName;
-                //show.Text = fName;
-                //sf = new smaliFile(fName, "e:");
-                //show.Text = sf.SourceName;
-                //show.Text += sf.Static.Count;
-                /*
-                for( int i=0 ;i< sf.Direct_Method.Count ;i++)
-                {
-                    show.Text += sf.Direct_Method[i];
-                }
-                 * */
-                
-                //me = sf.methodCfg;
-                //show.Text = me[me.Count - 1].methodName;
-                //return true;
-                //DrawGraph(me[3].xmlPath);
-            }            
-                return "";
-            /*
-            method mm = new method(show.Text.ToString());
-            //show.AppendText("\n\n\n" + mm.methodContent);
+                smaliPath =  openFileDialog.FileName;
 
-
-            for (int i = 0; i < mm.LinkFunc.Count; i++)
+            if (smaliPath == "")
             {
-                //show.AppendText("\n [" + i + "]:" + mm.InstruBlock[i]);
-                show.AppendText("\n link:" + mm.LinkFunc[i]);
+                MessageBox.Show("请选择文件！");
+                return;
             }
-             * */
+            listView1.Items.Clear();
+            listViewContent.Clear();
+            int extendindex = smaliPath.LastIndexOf(".", smaliPath.Length - 1);
+            int FolderNameINdex = smaliPath.LastIndexOf("\\", smaliPath.Length - 1) + 1;
+            outFileName = smaliPath.Substring(FolderNameINdex, extendindex - FolderNameINdex);
+            if (!Directory.Exists(outputPath + outFileName))//如果不存在单个的smali分析文件，则分析
+                new smaliFile(smaliPath, outputPath);
+            walkEveryXml(outputPath + outFileName);
         }
-        public string openFolder()
+
+        //读入apk反编译的整个项目文件并分析
+        private void openFileFold_Click(object sender, RoutedEventArgs e)
         {
+            destPath = "";
             OpenFileDialog ofd = new OpenFileDialog();
             ofd.Filter = "folders|*.sado;fjsdal;fj";
             ofd.FileName = "\r";
@@ -116,24 +106,97 @@ namespace apk_CFG
                 ofd.FileName = ofd.FileName.TrimEnd('\r');
                 int lastSeparatorIndex = ofd.FileName.LastIndexOf('\\');
                 ofd.FileName = ofd.FileName.Remove(lastSeparatorIndex);
-                return ofd.FileName;
+                destPath = ofd.FileName;
             }
-            return "";
+            if (destPath == "")
+            {
+                MessageBox.Show("请选择文件夹！！");
+                return;
+            }
+            listView1.Items.Clear();
+            listViewContent.Clear();
+
+            int FolderNameINdex = destPath.LastIndexOf("\\", destPath.Length - 1) + 1;
+            //判断是否是文件夹
+            if (Directory.Exists(destPath))
+            {
+                outFileName = destPath.Substring(FolderNameINdex, destPath.Length - FolderNameINdex);
+                if (!Directory.Exists(outputPath + outFileName))//如果不存在文件夹，则分析整个文件夹
+                    anaSmaliFolder();
+                walkEveryXml(outputPath + outFileName);
+            }
+            //ergodicFile();
+            //anaSmaliFolder();            
         }
-        private void load_Click(object sender, RoutedEventArgs e)
+        
+        //读入已经分析好的xml文件，解读
+        private void load_xml_Click(object sender, RoutedEventArgs e)
         {
-            smaliPath = openFile();
-            if (smaliPath == "")
+            xmlPath = "";
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+            openFileDialog.InitialDirectory = "c://";
+            openFileDialog.Filter = "All File|*.*|xml File|*.xml";
+            openFileDialog.RestoreDirectory = true;
+            openFileDialog.FilterIndex = 1;
+            if (openFileDialog.ShowDialog() == true)
+                xmlPath = openFileDialog.FileName;
+            if (xmlPath == "")
             {
                 MessageBox.Show("请选择文件！");
                 return;
             }
-            sf = new smaliFile(smaliPath, "e:\\");
-            me = sf.methodCfg;
-
+            listView1.Items.Clear();
+            listViewContent.Clear();
+            int extendindex = xmlPath.LastIndexOf(".", xmlPath.Length - 1);
+            int FolderNameINdex = xmlPath.LastIndexOf("\\", xmlPath.Length - 1) + 1;
+            outFileName = xmlPath.Substring(FolderNameINdex, extendindex - FolderNameINdex);
+            readSinglexml(outFileName, xmlPath);//直接分析xml文件
         }
-        
-        //遍历每个smali文件，并且把对应的路径添加到listview中
+
+        //文件拖拽的监听事件，并且分别分析
+        private void drag_enter(object sender, DragEventArgs e)
+        {
+            destPath = ((System.Array)e.Data.GetData(DataFormats.FileDrop)).GetValue(0).ToString();
+            if (destPath == "")
+            {
+                MessageBox.Show("发生了一些错误！");
+                return;
+            }
+            listView1.Items.Clear();
+            listViewContent.Clear();
+            int extendindex = destPath.LastIndexOf(".", destPath.Length - 1);
+            int FolderNameINdex = destPath.LastIndexOf("\\", destPath.Length - 1) + 1;
+            //判断是否是文件夹
+            if (Directory.Exists(destPath))
+            {
+                outFileName = destPath.Substring(FolderNameINdex, destPath.Length - FolderNameINdex);
+                if (!Directory.Exists(outputPath + outFileName))//如果不存在文件夹，则分析整个文件夹
+                    anaSmaliFolder();
+                walkEveryXml(outputPath + outFileName);
+            }
+            else if (extendindex != -1 && destPath.Substring(extendindex, destPath.Length - extendindex) == ".smali")
+            {
+                outFileName = destPath.Substring(FolderNameINdex, extendindex - FolderNameINdex);
+                if (!Directory.Exists(outputPath + outFileName))//如果不存在单个的smali分析文件，则分析
+                    new smaliFile(destPath, outputPath);
+                listView1.Items.Clear();
+                listViewContent.Clear();
+                walkEveryXml(outputPath + outFileName);
+            }
+            else if (extendindex != -1 && destPath.Substring(extendindex, destPath.Length - extendindex) == ".xml")
+            {
+                listView1.Items.Clear();
+                listViewContent.Clear();
+                outFileName = destPath.Substring(FolderNameINdex, extendindex - FolderNameINdex);
+                readSinglexml(outFileName, destPath);//直接分析xml文件
+            }
+            else
+            {
+                MessageBox.Show("请选择.smali格式文件、.xml格式文件或者apk反编译后的文件夹！");
+            }
+        }
+
+        //遍历文件夹下所有的xml文件，将条目按方法添加到listview中
         public void walkEveryXml(string inputPath)
         {
             string getFileName;
@@ -147,9 +210,12 @@ namespace apk_CFG
                         walkEveryXml(d);
                     else if (d.Substring(d.LastIndexOf(".", d.Length - 1), d.Length - d.LastIndexOf(".", d.Length - 1)) == ".xml")   //如果是xml文件，则加入到listview中
                     {
-                        FNindex = d.IndexOf(outFileName);
-                        FNindex = FNindex + outFileName.Length + 1;
-                        getFileName = d.Substring(FNindex, d.Length - FNindex);
+                        
+                            FNindex = d.IndexOf(outFileName);
+                            FNindex = FNindex + outFileName.Length + 1;
+                            getFileName = d.Substring(FNindex, d.Length - FNindex);
+                        
+                        
                         SmaliMeta smTmp = new SmaliMeta(getFileName, d);
                         listViewContent.Insert(0, smTmp);
                         listView1.Items.Insert(0, smTmp.showName);
@@ -158,6 +224,16 @@ namespace apk_CFG
             }  
         }
 
+        //读入单个的xml文件，并进行解读
+        private void readSinglexml(string showName, string path)
+        {
+            SmaliMeta smTmp = new SmaliMeta(showName, path);
+            listViewContent.Insert(0, smTmp);
+            listView1.Items.Insert(0, smTmp.showName);
+            DrawGraph(path);
+        }
+
+        //根据xml绘制CFG
         public void DrawGraph(object xmlPaths)
         {
             //使用之前，先全部清理掉
@@ -196,47 +272,33 @@ namespace apk_CFG
             // arrange the graph
             var layout = new LayeredLayout();
             layout.IgnoreNodeSize = false;//使得结点不会覆盖显示 
-            layout.Arrange(diagram);
-            layout.Orientation = MindFusion.Diagramming.Wpf.Layout.Orientation.Vertical;
+            layout.Arrange(diagram);//自动布局结点
 
         }
-          
-        private void openFileFold_Click(object sender, RoutedEventArgs e)
+              
+        //#rigion for analysis smali folders
+        //分析smali文件夹
+        private void anaSmaliFolder()
         {
-            destPath = openFolder();
-            if (destPath == "")
-            {
-                MessageBox.Show("请选择文件夹！！");
-                return;
-            }
-
-            listView1.Items.Clear();
-            listViewContent.Clear();
-            //ergodicFile();
             show.Visibility = Visibility.Visible;
-            show.Text = "正在分析中...";
+            //show.Text = "正在分析中...";
             updateListView = new Thread(ergodicFile);
             updateListView.Start();
             updatePgr = new Thread(doWork);
             updatePgr.Start();
-            //updageShowtext = new Thread(showText);
-            //updageShowtext.Start();
-            
         }
-
-        //更新显示信息
-        private void chgShow(int count)
+        //多线程，遍历所有smali文件
+        private void ergodicFile()
         {
-            string[] showtxt = { "正在分析中.", "正在分析中..", "正在分析中..." };
+            allSmali = new apkOfAllSmali(destPath);
+            outFileName = allSmali.FName;
+
+            listView1.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
+                new Action<string>(walkEveryXml), outputPath + outFileName);
+            isOk = true;
+            updateListView.Abort();
             
-            if (isOk == false)
-            {
-                show.Text = showtxt[count % 3];
-            }
-            if( isOk == true)
-                show.Visibility = Visibility.Hidden;
         }
-        
         //多线程，更新进度条
         private void doWork()
         {
@@ -263,63 +325,52 @@ namespace apk_CFG
             {
                 progressBar1.Visibility = Visibility.Hidden;
                 updatePgr.Abort();
+                isOk = false;
             }                
             if (progressBar1.Value == progressBar1.Maximum)//如果进度条达到最大值
                 progressBar1.Value = 0;
         }
-
-        //多线程，遍历所有smali文件
-        private void ergodicFile()
+        //更新显示信息
+        private void chgShow(int count)
         {
-            allSmali = new apkOfAllSmali(destPath);
-            outputPath = allSmali.outputFilePath;
-            outFileName = allSmali.FName;
-            
-            listView1.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
-                new Action<string>(walkEveryXml), outputPath);
-            isOk = true;
-            updateListView.Abort();
+            string[] showtxt = { "正在分析中.", "正在分析中..", "正在分析中..." };
+
+            if (isOk == false)
+            {
+                show.Text = showtxt[count % 3];
+            }
+            if (isOk == true)
+                show.Visibility = Visibility.Hidden;
         }
 
+        //listview变更的监听事件
         private void lv_selectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            
+        {            
             if (listView1.SelectedIndex != -1)
             {
-                this.diagram.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
-                    new Action<object>(DrawGraph), listViewContent[listView1.SelectedIndex].smaliPath);                
-                //DrawGraph(listViewContent[listView1.SelectedIndex].smaliPath);                
-            }
-                
+                updatePgr = new Thread(doWork);
+                updatePgr.Start();
+                updateSelect = new Thread(new ParameterizedThreadStart(threadDraw));
+                updateSelect.Start(listViewContent[listView1.SelectedIndex].smaliPath);//绘制CFG的线程              
+
+            }                
+        }
+        private void threadDraw(object path)
+        {
+            this.diagram.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
+                   new Action<object>(DrawGraph), path as string);
+            isOk = true;
+            //updatePgr.Abort();            
         }
 
-        //判断是否存在对应的文件夹
-        private bool isExistFoler()
+        private void windowClosed(object sender, EventArgs e)
         {
-            int NameINdex = destPath.LastIndexOf("\\", destPath.Length - 1)+1;
-            outFileName = destPath.Substring(NameINdex, destPath.Length - NameINdex);
-            //outputFilePath = Directory.GetCurrentDirectory() + "\\" + FName;
-            outputPath = AppDomain.CurrentDomain.BaseDirectory + outFileName;
-            return Directory.Exists(outputPath);                    
-        }
-        private void drag_enter(object sender, DragEventArgs e)
-        {
-            if (e.Data.GetDataPresent(DataFormats.FileDrop))
-                e.Effects = DragDropEffects.Link;                            //WinForm中为e.Effect = DragDropEffects.Link
-            else e.Effects = DragDropEffects.None;                      //WinFrom中为e.Effect = DragDropEffects.None
-            destPath = ((System.Array)e.Data.GetData(DataFormats.FileDrop)).GetValue(0).ToString();
-            if (destPath == "")
-            {
-                MessageBox.Show("请选择文件夹！！");
-                return;
-            }
-
-            listView1.Items.Clear();
-            listViewContent.Clear();
-            if ( !isExistFoler())//如果不存在文件夹，则分析文件
-                allSmali = new apkOfAllSmali(destPath);            
-            //isOk = true;
-            walkEveryXml(outputPath);
+            if (updateListView.ThreadState == ThreadState.Running)
+                updateListView.Abort();
+            if (updatePgr.ThreadState == ThreadState.Running)
+                updatePgr.Abort();
+            if (updateSelect.ThreadState == ThreadState.Running)
+                updateSelect.Abort();
         }
     }
 }

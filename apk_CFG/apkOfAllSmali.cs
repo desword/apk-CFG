@@ -9,8 +9,8 @@ namespace apk_CFG
 {
     public class apkOfAllSmali
     {
-        public string inputFilePath;
-        public string outputFilePath;
+        public string inputFilePath;//源文件路径\源文件夹  
+        public string outputFilePath;//目标文件路径\目标文件夹
         public string FName;
         public List<smaliFile> AllSmaliFile;
         public List<string> ConstomNode;//对自定义函数构造结点.[类名]->[函数名]. MethodCrossLink将加入系统函数
@@ -26,6 +26,7 @@ namespace apk_CFG
 
             CreatoutputFolder();            
             WalkAllSmaliFile(inputFilePath + "\\smali");//直接进入smali文件夹
+            //addSmali.Join();
             CreateConstmNode();
             //添加跨类调用的函数分析
             //MethodCrossWithCFGLink();
@@ -33,7 +34,7 @@ namespace apk_CFG
 
             //构造非详细call调用的method分析
             MethodCrossLink();
-            ExportXML.exportXML(outputFilePath, FName,ConstomNode, CrossMethodNode);
+            //ExportXML.exportXML(outputFilePath, FName,ConstomNode, CrossMethodNode);
         }
 
         ~apkOfAllSmali()
@@ -43,15 +44,9 @@ namespace apk_CFG
         //【缺少对已经存在文件夹的判断】
         public void CreatoutputFolder()
         {
-            int NameINdex = inputFilePath.LastIndexOf("\\", inputFilePath.Length - 1);
+            int NameINdex = inputFilePath.LastIndexOf("\\", inputFilePath.Length - 1)+1;
             FName = inputFilePath.Substring(NameINdex, inputFilePath.Length - NameINdex);
-            //outputFilePath = Directory.GetCurrentDirectory() + "\\" + FName;
             outputFilePath = AppDomain.CurrentDomain.BaseDirectory + "\\" + FName;
-            /*
-            this.storeFName = this.FName.Replace("<", "%");
-            this.storeFName = this.FName.Replace(">", "%");
-            this.storeFName = this.FName.Replace("/", "%");
-             * */
             DirectoryInfo dir = new DirectoryInfo(outputFilePath);
             dir.Create();            
         }
@@ -68,9 +63,12 @@ namespace apk_CFG
                 foreach (string d in System.IO.Directory.GetFileSystemEntries(inputPath))
                 {
                     int dotIndex = d.LastIndexOf(".", d.Length - 1);
+                    int SlashIndex = d.LastIndexOf("\\", d.Length - 1)+1;
+                    string filteString = d.Substring(SlashIndex, d.Length - SlashIndex);
                     if (System.IO.Directory.Exists(d))//如果当前的是文件夹，则递归
                         WalkAllSmaliFile(d);
-                    else if (dotIndex != -1 && d.Substring(dotIndex, d.Length - dotIndex) == ".smali")//如果是smali文件，则建立smaliFile类型
+                    else if (dotIndex != -1 && d.Substring(dotIndex, d.Length - dotIndex) == ".smali"
+                              && filteString != "BuildConfig.smali" && filteString != "R.smali" && filteString.Substring(0, 2) != "R$")//如果是smali文件，则建立smaliFile类型。过滤自动生成的
                         AllSmaliFile.Add(new smaliFile(d, outputFilePath));        
                     
                     //{
@@ -194,7 +192,7 @@ namespace apk_CFG
             {
                 foreach (method methodTmp in smTmp.methodCfg)
                 {
-                    ExportXML.exportXML(methodTmp.xmlPath, methodTmp.storeMethodName,methodTmp.InstruBlock, methodTmp.LinkFunc);
+                    //ExportXML.exportXML(methodTmp.xmlPath, methodTmp.storeMethodName,methodTmp.InstruBlock, methodTmp.LinkFunc);
                 }
             }
         }
