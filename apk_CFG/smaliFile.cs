@@ -87,12 +87,12 @@ namespace apk_CFG
         public void readFile()
         {
             StreamReader apkStreamReader = new StreamReader(this.smali_path);
-            int count = 1;
+            int count = 0;
             while (!apkStreamReader.EndOfStream)
             {
                 string strReadLine = apkStreamReader.ReadLine(); //读取每行数据
                 this.FileContent += (strReadLine + "\n");
-                if (strReadLine.IndexOf(".method") != -1)//记录每个方法的起始行数，从1开始
+                if (strReadLine.IndexOf(".method") != -1)//记录每个方法的起始行数，从0开始
                     method_hang.Add(count);
                 count++;
             }

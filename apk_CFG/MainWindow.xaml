@@ -15,6 +15,9 @@
         <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Content="读入smali文件" Height="30" HorizontalAlignment="Left" Margin="20,15,0,0" Name="load" VerticalAlignment="Top" Width="115" Click="load_Click" />
         <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Content="读取文件夹" Height="30" HorizontalAlignment="Left" Margin="175,15,0,0" Name="openFileFold" VerticalAlignment="Top" Width="115" Click="openFileFold_Click" />
         <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Content="读取xml文件" Height="30" HorizontalAlignment="Left" Margin="325,15,0,0" Name="load_xml" VerticalAlignment="Top" Width="115" Click="load_xml_Click" />
+        <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Content="smali文件插桩" Height="30" HorizontalAlignment="Left" Margin="468,15,0,0" Name="btn_instrument" VerticalAlignment="Top" Width="109" Click="btn_instrument_Click" />
+        <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Content="解析log文件" Height="30" HorizontalAlignment="Left" Margin="606,15,0,0" Name="btn_parseLog" VerticalAlignment="Top" Width="109" />
+
         <ProgressBar Height="15" HorizontalAlignment="Left" Margin="20,50,0,0" Name="progressBar1" VerticalAlignment="Top" Width="330" Visibility="Hidden" Grid.RowSpan="2" />
         <TextBox Text="请选择文件进行分析" FontSize="11" Height="18" HorizontalAlignment="Left" Margin="350,48,0,0" Name="show" VerticalAlignment="Top" Width="130" AcceptsReturn="True" Grid.RowSpan="2" IsEnabled="True" Foreground="#FF272523" BorderThickness="0" IsReadOnly="True" FontFamily="SimSun" FontWeight="Normal" Visibility="Hidden" />
         <GroupBox Grid.Row="1" Grid.RowSpan="2" Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Header="control flow graph" Margin="0,20,0,0" Name="groupBox1" BorderBrush="#FF9F9595">

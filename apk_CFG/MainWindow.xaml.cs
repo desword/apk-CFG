@@ -42,8 +42,8 @@ namespace apk_CFG
         //整个apk，反编译后smali文件夹解决方案
         public string destPath;
         public apkOfAllSmali allSmali = null;
-        public string outputPath;//最终分析结果目录
-        public string outFileName;//建立的文件夹名称
+        public string outputPath;//最终分析结果目录  D:\Documents\GitHub\apk-CFG\apk_CFG\bin\Debug\smaliDF
+        public string outFileName;//建立的文件夹名称  smaliDF
         public List<SmaliMeta> listViewContent;
         //分析xml文件
         public string xmlPath;
@@ -209,12 +209,10 @@ namespace apk_CFG
                     if (System.IO.Directory.Exists(d))//如果当前的是文件夹，则递归
                         walkEveryXml(d);
                     else if (d.Substring(d.LastIndexOf(".", d.Length - 1), d.Length - d.LastIndexOf(".", d.Length - 1)) == ".xml")   //如果是xml文件，则加入到listview中
-                    {
-                        
-                            FNindex = d.IndexOf(outFileName);
-                            FNindex = FNindex + outFileName.Length + 1;
-                            getFileName = d.Substring(FNindex, d.Length - FNindex);
-                        
+                    {                        
+                        FNindex = d.IndexOf(outFileName);
+                        FNindex = FNindex + outFileName.Length + 1;
+                        getFileName = d.Substring(FNindex, d.Length - FNindex);                        
                         
                         SmaliMeta smTmp = new SmaliMeta(getFileName, d);
                         listViewContent.Insert(0, smTmp);
@@ -371,6 +369,14 @@ namespace apk_CFG
                 updatePgr.Abort();
             if (updateSelect.ThreadState == ThreadState.Running)
                 updateSelect.Abort();
+        }
+
+        private void btn_instrument_Click(object sender, RoutedEventArgs e)
+        {
+            if (this.outputPath != "")
+            {
+                new InstrumentSmali(this.outputPath + this.outFileName);
+            }
         }
     }
 }

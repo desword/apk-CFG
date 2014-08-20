@@ -55,6 +55,7 @@
     </ApplicationDefinition>
     <Compile Include="apkOfAllSmali.cs" />
     <Compile Include="ExportXML.cs" />
+    <Compile Include="InstrumentSmali.cs" />
     <Compile Include="method.cs" />
     <Compile Include="smaliFile.cs" />
     <Page Include="MainWindow.xaml">

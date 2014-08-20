@@ -14,7 +14,7 @@ namespace apk_CFG
         public List<int> borderIndex;//代码块的起始下标
         public List<string> InstruBlock;//代码指令块
         public string locals;//.locals 区域的信息 num|hang
-        public string begendInfo;// method块的 开始和结束的行号 sourpath|beg|end|[end]多个end
+        public string begendInfo;// method块的 开始和结束的行号 return结点的编号 sourpath|beg|end|returnNum|所有结点的个数
         public List<int> keyWordHang;//记录if，goto语句的行号
 
         public List<string> LinkFunc;//起点|终点|显示信息  -- 显示信息为single时，不进行任何连接操作
@@ -60,7 +60,8 @@ namespace apk_CFG
         {
             int index=0, end=0;
             int st=0,lo;
-            List<int> ter = new List<int>();
+            //List<int> ter = new List<int>();
+            int ter=0;
             int count=0;
             string toJudge;
             //Regex r = new Regex("^    goto", RegexOptions.Compiled); ;
@@ -72,21 +73,23 @@ namespace apk_CFG
                 {
                     string[] localsub = toJudge.Split(' ');
                     lo = (this.startH + count);
-                    locals = localsub[localsub.Length - 1] + "|"+lo ;
+                    locals = localsub[localsub.Length - 1] + "|" + lo;
                 }
                 else if (toJudge.IndexOf(".prologue") != -1)//将.prologue信息记录，即开始行号
                     st = this.startH + count;
                 else if (toJudge.IndexOf("return") != -1)//结束的行号
-                    ter.Add(this.startH + count);
-                else if (toJudge.IndexOf("if-") != -1 || toJudge.IndexOf(" goto") !=-1)//匹配if和goto关键字行号,r.IsMatch(toJudge)
+                    //ter.Add(this.startH + count);
+                    ter = this.startH + count;
+                else if (toJudge.IndexOf("if-") != -1 || toJudge.IndexOf(" goto") != -1)//匹配if和goto关键字行号,r.IsMatch(toJudge)
                     keyWordHang.Add(this.startH + count);
                 count++;
                 index = end + 1;
             }
-            begendInfo = this.SourceSmaliPath + "|" + st;//source ,beg ,end info
+            begendInfo = this.SourceSmaliPath + "|" + st + "|" + ter;//source ,beg ,end info
+            /*
             foreach (int tertmp in ter)
                 begendInfo += ("|" + tertmp);
-            
+            */
         }
 
         //分析本method的名称
@@ -185,12 +188,14 @@ namespace apk_CFG
             //如果最后一个分界点不是字符串尾部
             if (this.methodContent.Length != borderIndex[borderIndex.Count - 1]) 
                 InstruBlock.Add(this.methodContent.Substring(borderIndex[borderIndex.Count - 1], this.methodContent.Length - borderIndex[borderIndex.Count - 1]));
-            string finalBlock = InstruBlock[ InstruBlock.Count -1];
+            string[] finalBlock = InstruBlock[ InstruBlock.Count -1].Split('|');
             //为最后一个代码块添加 终止标示符，统一格式，方便检索
-            if (finalBlock[finalBlock.Length - 1] != '\n')
+            if (finalBlock[0].ToString()[finalBlock[0].Length - 1] != '\n')
             {
                 InstruBlock.RemoveAt(InstruBlock.Count -1);
-                InstruBlock.Add(finalBlock + "\n");//---------正式使用修改
+                string bloTmp = finalBlock[0] + "\n";
+                if (finalBlock.Length > 1) bloTmp += ("|" + finalBlock[1]);//如果有特别标记行号，则加入
+                InstruBlock.Add(bloTmp);//---------正式使用修改
             }
         }
 
@@ -219,7 +224,12 @@ namespace apk_CFG
                     if (r.IsMatch(Tail)) break;
                 }
                 //本代码块为return，不做任何链接
-                if (keySearch == keyWord.Length - 1) continue;
+                if (keySearch == keyWord.Length - 1)
+                {
+                    this.begendInfo += ("|" + i);//记录对应的标号位置
+                    this.begendInfo += ("|" + this.InstruBlock.Count);//加入所有结点的个数
+                    continue;
+                } 
                 //[不一定是有的]  下一个代码块有:标示符。   对于没有考虑的情况，都采取不作为的处理
                 if (keySearch == keyWord.Length && (i+1)<=LinkHead.Count-1)
                 { 
@@ -275,6 +285,7 @@ namespace apk_CFG
                 }
 
             }
+            
         }
 
         //解析goto指令

@@ -11,7 +11,7 @@ namespace apk_CFG
         public static int count = 1;
 
         //添加插桩辅助信息的xml
-        //SourceSmaliandBE:  sourcePath|beg|end
+        //SourceSmaliandBE:  sourcePath|beg|end|retNo|nodeNUm
         //Locals: content|hang
         //Node:   name|[hang]-- 可选的
         public static void exportXML(string outputPath, string FileName, List<string> Node, List<string> LinkNode, string SourceSmaliandBE, string Locals)
@@ -24,7 +24,7 @@ namespace apk_CFG
 
             //--添加sourcepath信息
             XmlElement source;
-            XmlAttribute path, beg, end;
+            XmlAttribute path, beg, end,retno,nodeNum;
             String[] sourceSub = SourceSmaliandBE.Split('|');
             source = xml.CreateElement("Source");
             path = xml.CreateAttribute("path");
@@ -32,14 +32,21 @@ namespace apk_CFG
             beg = xml.CreateAttribute("beg");
             beg.Value = sourceSub[1];
             int i;
-            end = xml.CreateAttribute("end");//因此end域的形式为 end|[end]|end
+            end = xml.CreateAttribute("end");//因此end域的形式为 end|
             end.Value = sourceSub[2];
+            retno = xml.CreateAttribute("retNo");//添加return结点的下标
+            retno.Value = sourceSub[3];
+            nodeNum = xml.CreateAttribute("noNum");//结点的个数
+            nodeNum.Value = sourceSub[4];
+            /*
             for (i = 3; i < sourceSub.Length; i++ )
                 end.Value += ("|" + sourceSub[i]);
-            
+            */
             source.Attributes.Append(path);
             source.Attributes.Append(beg);
             source.Attributes.Append(end);
+            source.Attributes.Append(retno);
+            source.Attributes.Append(nodeNum);
             graph.AppendChild(source);
 
             //---添加locals信息
@@ -58,7 +65,6 @@ namespace apk_CFG
             //---添加node信息
             XmlElement node;
             XmlAttribute id, name,hang;
-            int i;
             String[] nodesub;
             for (i = 0; i < Node.Count; i++)
             {
