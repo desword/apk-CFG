@@ -190,6 +190,11 @@ namespace apk_CFG
                 outFileName = destPath.Substring(FolderNameINdex, extendindex - FolderNameINdex);
                 readSinglexml(outFileName, destPath);//直接分析xml文件
             }
+            //对log文件的处理
+            else if (extendindex != -1 && destPath.Substring(extendindex, destPath.Length - extendindex) == ".txt")
+            {
+                new parseLog(destPath, outputPath + outFileName);
+            }
             else
             {
                 MessageBox.Show("请选择.smali格式文件、.xml格式文件或者apk反编译后的文件夹！");
@@ -376,7 +381,13 @@ namespace apk_CFG
             if (this.outputPath != "")
             {
                 new InstrumentSmali(this.outputPath + this.outFileName);
+                MessageBox.Show("完成对apk项目的插桩，可以进行重编译获取运行的记录信息了！");
             }
+        }
+
+        private void btn_parseLog_Click(object sender, RoutedEventArgs e)
+        {
+
         }
     }
 }

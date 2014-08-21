@@ -59,9 +59,9 @@ namespace apk_CFG
         public void anaLocalBegEndInfo()
         {
             int index=0, end=0;
-            int st=0,lo;
+            int st=-1,lo;
             //List<int> ter = new List<int>();
-            int ter=0;
+            int ter=-1;
             int count=0;
             string toJudge;
             //Regex r = new Regex("^    goto", RegexOptions.Compiled); ;
@@ -207,6 +207,7 @@ namespace apk_CFG
             if (InstruBlock.Count == 1)//只有一个代码块的method
             {
                 LinkFunc.Add("-1|-1|single");//不进行任何连接操作
+                this.begendInfo += ("|-1|" + this.InstruBlock.Count);//return位置为-1，count
                 return;                
             }
             string[] block;

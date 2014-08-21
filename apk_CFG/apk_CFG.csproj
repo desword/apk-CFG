@@ -57,6 +57,7 @@
     <Compile Include="ExportXML.cs" />
     <Compile Include="InstrumentSmali.cs" />
     <Compile Include="method.cs" />
+    <Compile Include="parseLog.cs" />
     <Compile Include="smaliFile.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>

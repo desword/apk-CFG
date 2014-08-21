@@ -16,6 +16,8 @@ namespace apk_CFG
         XDocument xml;//xml内容记录
         public List<string> reverNodes;//逆序分析的结点  
         public List<string> virtuLink;//为for循环添加的虚边:  original|target|wei
+        public bool isFirstIns;
+        public string SmaliNameTojudge;
 
         //---四个变量名
         public string vPathId;       //计数变量
@@ -25,6 +27,7 @@ namespace apk_CFG
 
         //---xml文件有用信息
         public string SmaliClassSourcePath;//smali文件的源路径:  C:\Users\Administrator\Desktop\smaliDF\smali\com\example\smali\MainActivity.smali
+        public string PreSmaliClassSourcePath;//前面一个smali文件的路径
         public int method_beg;//方法的头与尾的行号
         public int method_end;
         public int locals_num;//locals 的个数以及行号
@@ -38,7 +41,9 @@ namespace apk_CFG
         //CfgFolderPath:  D:\Documents\GitHub\apk-CFG\apk_CFG\bin\Debug\smaliDF
         public InstrumentSmali(string CfgFolderPath)
         {
-            this.cfgPath = CfgFolderPath;            
+            this.cfgPath = CfgFolderPath;
+            this.smaliFileContent = new List<string>();//每个文件，每个类。初次对一个项目进行插桩时，初始化
+            this.isFirstIns = true;//第一次载入文件进行分析
 
             ergodicEveryXml(this.cfgPath);
         }
@@ -50,34 +55,73 @@ namespace apk_CFG
             {
                 foreach (string d in System.IO.Directory.GetFileSystemEntries(CFGpath))
                 {
-                    this.reverNodes = new List<string>();//初始化逆向分析结点库
-                    this.virtuLink = new List<string>();
-                    this.smaliFileContent = new List<string>();
+                    this.reverNodes = new List<string>();//初始化逆向分析结点库--每个方法
+                    this.virtuLink = new List<string>();//每个方法
+                    //this.smaliFileContent = new List<string>();//每个文件，每个类
 
                     extraXmlInfo(d);//提取xml信息
+                    if (this.isFirstIns)//如果是第一次载入，则确定当前的类名为初始类名
+                    {
+                        this.SmaliNameTojudge = this.SmaliClassName;
+                        justInstrument_loadsmali();//每个文件，每个类. 载入文件内容
+                        this.isFirstIns = false;
+                    }
+                    else if (!this.SmaliNameTojudge.Equals(this.SmaliClassName))//如果下一个要分析的类与当前类不一样
+                    {
+                        SaveSamli(this.PreSmaliClassSourcePath);//存储前面处理好的smali文件
+                        this.PreSmaliClassSourcePath = this.SmaliClassSourcePath;//前一个文件的路径设置为当前路径
+                        this.SmaliNameTojudge = this.SmaliClassName;//记录新的待分析的类
+                        this.smaliFileContent = new List<string>();//申请新的内容
+                        justInstrument_loadsmali();//载入新的内容
+                    }
+
                     reverseNode();//将结点逆向排序
                     dealWithLoop();//处理循环，添加head and tail边
                     calcNodeandEdgeValue();//计算每条边以及点的weight
+                    
                     justInstrument();//代码插桩
-                    SaveSmaliandXml(d, this.SmaliClassSourcePath);
+                    SaveXml(d);
                 }
+                SaveSamli(this.SmaliClassSourcePath);//将最后一个smali文件存储
             }
         }
 
-        //将smali文件和xml文件分别覆盖存储
-        //xmlPath: D:\Documents\GitHub\apk-CFG\apk_CFG\bin\Debug\smaliDF\[MainActivity]FOR()V.xml 
+        //存储smali的instument文件
         //smaliPath: C:\Users\Administrator\Desktop\smaliDF\smali\com\example\smali\MainActivity.smali
-        public void SaveSmaliandXml(string xmlPath,string smaliPath)
+        public void SaveSamli(string smaliPath)
         {
             //写入smali
-            using (StreamWriter file = new StreamWriter(smaliPath)) 
-            { 
-                foreach (string line in this.smaliFileContent) 
-                    file.WriteLine(line); 
+            using (StreamWriter file = new StreamWriter(smaliPath))
+            {
+                foreach (string line in this.smaliFileContent)
+                    file.WriteLine(line);
             } 
+        }
+
+        //存储xml文件
+        //xmlPath: D:\Documents\GitHub\apk-CFG\apk_CFG\bin\Debug\smaliDF\[MainActivity]FOR()V.xml 
+        public void SaveXml(string xmlPath)
+        {
+            XElement graph = this.xml.Element("Graph");
+            string[] virSub;
+            int i;
+            for (i = 0; i < this.virtuLink.Count; i++)
+            {
+                graph.SetElementValue("virtuLink"+i, 0);
+                var virlinks = graph.Descendants("virtuLink"+i);
+                foreach (var virlink in virlinks)//加入添加的dummy边
+                {
+                    virSub = this.virtuLink[i].Split('|');
+                    virlink.SetAttributeValue("origin", virSub[0]);
+                    virlink.SetAttributeValue("target", virSub[1]);
+                    virlink.SetAttributeValue("wei", virSub[2]);
+                }
+            }                
             //写入xml
             this.xml.Save(xmlPath);
         }
+
+ 
 
         //归约出结点分析序列
         //应对exit 和循环结点分离的情况，一个if把两个代码块分离开了
@@ -111,12 +155,12 @@ namespace apk_CFG
                     {
                         //寻找待加入的点的出度点不在reve序列中的情况
                         if (link.Attribute("origin").Value.Equals(x + "") 
-                            && this.reverNodes.IndexOf(link.Attribute("target").Value) != -1)
+                            && this.reverNodes.IndexOf(link.Attribute("target").Value) == -1)
                         {
                             foreach (var link2 in links)
                             {
                                 //寻找loop尾，且未在reve序列中的结点
-                                if (link2.Attribute("label").Equals("jmp") 
+                                if (link2.Attribute("label").Value.Equals("jmp") 
                                     && this.reverNodes.IndexOf(link2.Attribute("origin").Value) == -1)
                                 {
                                     this.reverNodes.Add(link2.Attribute("origin").Value);
@@ -177,7 +221,7 @@ namespace apk_CFG
                     if (link.Attribute("origin").Value.Equals(this.reverNodes[i])
                           && !link.Attribute("label").Value.Equals("jmp"))//寻找当前结点的出度边，且不是backedge边
                     {
-                        link.SetAttributeValue("wei", NodeWeight[i]);
+                        link.SetAttributeValue("wei", NodeWeight[Int32.Parse(this.reverNodes[i])]);
                         NodeWeight[Int32.Parse(this.reverNodes[i])] += NodeWeight[Int32.Parse(link.Attribute("target").Value)];//更新结点weight
                         //XAttribute weis = new XAttribute();
                         //wei = this.xml.cre
@@ -188,8 +232,8 @@ namespace apk_CFG
                     elesub = this.virtuLink[j].Split('|');
                     if (elesub[0].Equals(this.reverNodes[i]))
                     {
-                        this.virtuLink[j] += ("|" + NodeWeight[i]);//为dummy边赋值
-                        NodeWeight[i] += NodeWeight[Int32.Parse(elesub[1])];
+                        this.virtuLink[j] += ("|" + NodeWeight[Int32.Parse(this.reverNodes[i])]);//为dummy边赋值
+                        NodeWeight[Int32.Parse(this.reverNodes[i])] += NodeWeight[Int32.Parse(elesub[1])];
                     }
                 }
             }
@@ -198,7 +242,7 @@ namespace apk_CFG
         //对具有权值>0的边进行插桩操作
         public void justInstrument()
         {
-            justInstrument_loadsmali();
+            
             justInstrument_methodHead();
             justInstrument_methodTail();
 
@@ -237,13 +281,13 @@ namespace apk_CFG
         { 
             //修改locals
             int loNum = this.locals_num + 4 ;//多四个局部变量。 
-            this.smaliFileContent[this.locals_hang] = "    .locals " + loNum + "\n";
+            this.smaliFileContent[this.locals_hang] = ".locals " + loNum + "\n";
             //初始化pathId记录数器
-            this.smaliFileContent[this.method_beg] += ("    const/4 "+ this.vPathId + ", 0x0\n");
+            this.smaliFileContent[this.method_beg] += ("\nconst/4 "+ this.vPathId + ", 0x0\n");
             //声明[类名][方法]的开始.  --beg[类名]方法名--
             this.smaliFileContent[this.method_beg] +=
-                ("    const-string " + this.vMethodTag + ", \"beg[" + this.SmaliClassName + "]" + this.MethodName + "|\"\n"
-                +"    invoke-static {" + this.vMethodTag + ", " + this.vMethodTag + @"}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I"+"\n");
+                ("const-string " + this.vMethodTag + ", \"beg[" + this.SmaliClassName + "]" + this.MethodName + "\"\n"
+                +"invoke-static {" + this.vMethodTag + ", " + this.vMethodTag + @"}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I"+"\n");
         }
 
         //构造方法尾的instrument
@@ -252,7 +296,7 @@ namespace apk_CFG
         {
             string endTmp = this.smaliFileContent[this.method_end];//暂时存储return
             this.smaliFileContent[this.method_end] =
-                "    new-instance "+ this.vStrBuilder +@", Ljava/lang/StringBuilder;" + "\n"
+                "\nnew-instance "+ this.vStrBuilder +@", Ljava/lang/StringBuilder;" + "\n"
                 + "invoke-static {" + this.vPathId + @"}, Ljava/lang/String;->valueOf(I)Ljava/lang/String;"+"\n"
                 + "move-result-object "+ this.vPathId +"\n"
                 + "invoke-direct {" +this.vStrBuilder +", "+ this.vPathId + @"}, Ljava/lang/StringBuilder;-><init>(Ljava/lang/String;)V" + "\n"
@@ -274,7 +318,7 @@ namespace apk_CFG
             string loopHeadId = link.Attribute("target").Value;
             string loopTailId = link.Attribute("origin").Value;
             int gotoHang=0;
-            string gotoTmp;
+            string gotoTmp= "";
             foreach( var ll in links)//搜索goto行的位置
             {
                 if (ll.Attribute("id").Value.Equals(loopTailId))
@@ -300,15 +344,20 @@ namespace apk_CFG
             if (!tailIncre.Equals("0"))
             {
                 this.smaliFileContent[gotoHang] =
-                      "    const/16 "+ this.vIncreMent +", "+tailIncre + "\n" 
+                      "\nconst/16 "+ this.vIncreMent +", "+tailIncre + "\n" 
                     + "add-int "+ this.vPathId +", "+ this.vPathId +", "+ this.vIncreMent +"\n";
             }
             //2、输出一次循环的计数值
             this.smaliFileContent[gotoHang] +=
-                ("invoke-static {" + this.vPathId + ", " + this.vPathId + @"}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I" + "\n");
+                ("\ninvoke-static {"+ this.vPathId +"}, Ljava/lang/String;->valueOf(I)Ljava/lang/String;\n"
+                  +  "move-result-object "+ this.vIncreMent + "\n"
+                  +  "invoke-static {"+ this.vIncreMent +", "+ this.vIncreMent +"}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I\n");
+                //("\ninvoke-static {" + this.vPathId + ", " + this.vPathId + @"}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I" + "\n");
             //3、给vPathId赋予新的headinc的值
             this.smaliFileContent[gotoHang] +=
                   ( "const/16 "+ this.vPathId +", "+ headIncre +"\n"  );
+            //4、赋予goto内容
+            this.smaliFileContent[gotoHang] += gotoTmp;
         }
 
         //构造一般增量的instrument
@@ -328,7 +377,7 @@ namespace apk_CFG
                     break;
                 }
             this.smaliFileContent[oriHang] += 
-                    ( "const/16 "+ this.vIncreMent +", "+ increm +"\n" +
+                    ( "\nconst/16 "+ this.vIncreMent +", "+ increm +"\n" +
                       "add-int "+ this.vPathId +", "+ this.vPathId +", "+ this.vIncreMent +"\n" );
         }
 
@@ -349,6 +398,9 @@ namespace apk_CFG
                 this.return_no = Int32.Parse(ss.Attribute("retNo").Value);
                 this.Node_num = Int32.Parse(ss.Attribute("noNum").Value);
             }
+            //如果是第一次载入，存储当前的路径
+            if( this.isFirstIns )
+                this.PreSmaliClassSourcePath = this.SmaliClassSourcePath;
             IEnumerable<XElement> loca = graph.Descendants("locals");
             foreach (XElement ll in loca)
             {
