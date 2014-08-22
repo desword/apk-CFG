@@ -23,15 +23,21 @@ namespace apk_CFG
             //XmlElement nodes = xml.CreateElement("Nodes");
 
             //--添加sourcepath信息
+            int i;
             XmlElement source;
             XmlAttribute path, beg, end,retno,nodeNum;
             String[] sourceSub = SourceSmaliandBE.Split('|');
+            for (i = 0; i < 5 - sourceSub.Length; i++)//处理分组的个数小于5的情况
+            {
+                SourceSmaliandBE += ("|-1");
+            }
+            sourceSub = SourceSmaliandBE.Split('|');
             source = xml.CreateElement("Source");
             path = xml.CreateAttribute("path");
             path.Value = sourceSub[0];
             beg = xml.CreateAttribute("beg");
             beg.Value = sourceSub[1];
-            int i;
+            
             end = xml.CreateAttribute("end");//因此end域的形式为 end|
             end.Value = sourceSub[2];
             retno = xml.CreateAttribute("retNo");//添加return结点的下标
@@ -52,6 +58,7 @@ namespace apk_CFG
             //---添加locals信息
             XmlElement loca;
             XmlAttribute number, hanglca;
+            if (Locals == null) Locals = "-1|-1|-1";//对absrtact方法的处理
             String[] Localsub = Locals.Split('|');
             loca = xml.CreateElement("locals");
             number = xml.CreateAttribute("num");

@@ -124,6 +124,7 @@ namespace apk_CFG
                 if (!Directory.Exists(outputPath + outFileName))//如果不存在文件夹，则分析整个文件夹
                     anaSmaliFolder();
                 walkEveryXml(outputPath + outFileName);
+                btn_instrument.IsEnabled = true;
             }
             //ergodicFile();
             //anaSmaliFolder();            
@@ -173,6 +174,7 @@ namespace apk_CFG
                 if (!Directory.Exists(outputPath + outFileName))//如果不存在文件夹，则分析整个文件夹
                     anaSmaliFolder();
                 walkEveryXml(outputPath + outFileName);
+                btn_instrument.IsEnabled = true;
             }
             else if (extendindex != -1 && destPath.Substring(extendindex, destPath.Length - extendindex) == ".smali")
             {
@@ -193,7 +195,9 @@ namespace apk_CFG
             //对log文件的处理
             else if (extendindex != -1 && destPath.Substring(extendindex, destPath.Length - extendindex) == ".txt")
             {
-                new parseLog(destPath, outputPath + outFileName);
+                parseLog log = new parseLog(destPath, outputPath + outFileName);
+                walkEveryXml(log.outLogPath);
+
             }
             else
             {
@@ -233,15 +237,23 @@ namespace apk_CFG
             SmaliMeta smTmp = new SmaliMeta(showName, path);
             listViewContent.Insert(0, smTmp);
             listView1.Items.Insert(0, smTmp.showName);
-            DrawGraph(path);
+            DrawGraph(path,false);
         }
 
         //根据xml绘制CFG
-        public void DrawGraph(object xmlPaths)
+        public void DrawGraph(object xmlPaths,bool isLog)
         {
             //使用之前，先全部清理掉
             string xmlPath = xmlPaths as string;
+            string retu_id="";
+
             diagram.ClearAll();
+            diagram.LinkHeadShape = ArrowHeads.PointerArrow;//设置连线箭头的类型
+            GlassEffect effect = new GlassEffect();
+            effect.Type = GlassEffectType.Type4;//设置结点的玻璃效果
+            effect.GlowColor = Colors.Black;
+            diagram.NodeEffects.Add(effect);
+
             var nodeMap = new Dictionary<string, DiagramNode>();
             var bounds = new Rect(30, 30, 10, 2);
 
@@ -250,6 +262,10 @@ namespace apk_CFG
             var graph = xml.Element("Graph");
 
             // load node data
+            var sours = graph.Descendants("Source");
+            foreach (var sour in sours)//获取exit的结点
+                retu_id = sour.Attribute("retNo").Value;
+
             var nodes = graph.Descendants("Node");
             foreach (var node in nodes)
             {
@@ -262,19 +278,53 @@ namespace apk_CFG
                 diagramNode.TextAlignment = TextAlignment.Left;
             }
 
+            //设置特殊结点的颜色
+            ShapeNode s2 = (ShapeNode)nodeMap["0"];//起点位置是绿色
+            s2.Brush = Brushes.LightGreen;
+            s2 = (ShapeNode)nodeMap[retu_id];//终止位置是红色
+            s2.Brush = Brushes.Red;
+
             // load link data
+            Style linkStyle = new Style();
+            linkStyle.Setters.Add(new Setter(DiagramLink.BrushProperty, Brushes.Red));//log信息的颜色标记
+
             var links = graph.Descendants("Link");
             foreach (var link in links)
             {
                 DiagramLink dl = diagram.Factory.CreateDiagramLink(
                     nodeMap[link.Attribute("origin").Value],
                     nodeMap[link.Attribute("target").Value]);
-                dl.AddLabel(link.Attribute("label").Value);  //添加链接信息
+                
+                if( link.Attribute("label").Value.Equals("True"))//为ifelse 标记形状
+                {
+                    ShapeNode s = (ShapeNode)nodeMap[link.Attribute("origin").Value];
+                    s.Shape = Shapes.Decision;
+                    //s.Brush = Brushes.RoyalBlue;
+                    s.TextAlignment = TextAlignment.Center;
+                }
+                
+                //----------log采集的信息显示                
+                if (isLog && !link.Attribute("log").Value.Equals("0"))
+                {
+                    dl.Style = linkStyle;                    
+                    string logShow = link.Attribute("log").Value.Remove(0, 1);
+                    dl.AddLabel(link.Attribute("label").Value + "--"+logShow); //显示运行的步骤信息
+                    dl.IntermediateShape = ArrowHeads.PointerArrow;
+                }
+                else
+                    dl.AddLabel(link.Attribute("label").Value);  //添加链接信息
+                    
+
+                //diagram.DiagramLinkStyle = linkStyle;
+                //Brush a = new Brush();
+                //a.
+                //dl.HeadPen.Brush = Brush;
             }
             
             // arrange the graph
-            var layout = new LayeredLayout();
-            layout.IgnoreNodeSize = false;//使得结点不会覆盖显示 
+            var layout = new MindFusion.Diagramming.Wpf.Layout.DecisionLayout();
+            //layout.IgnoreNodeSize = false;//使得结点不会覆盖显示 
+            layout.StartNode = nodeMap["0"];
             layout.Arrange(diagram);//自动布局结点
 
         }
@@ -308,10 +358,11 @@ namespace apk_CFG
             int count = 0;  
             while(true)
             {
-                progressBar1.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
-                    new Action<int>(pgr), count);
                 show.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
                     new Action<int>(chgShow), count);
+                progressBar1.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
+                    new Action<int>(pgr), count);
+                
                 count++;
                 Thread.Sleep(10);                              
             }            
@@ -337,7 +388,8 @@ namespace apk_CFG
         private void chgShow(int count)
         {
             string[] showtxt = { "正在分析中.", "正在分析中..", "正在分析中..." };
-
+            if( count == 0)//第一次载入，显示文本
+                show.Visibility = Visibility.Visible;
             if (isOk == false)
             {
                 show.Text = showtxt[count % 3];
@@ -351,6 +403,7 @@ namespace apk_CFG
         {            
             if (listView1.SelectedIndex != -1)
             {
+                isOk = false;
                 updatePgr = new Thread(doWork);
                 updatePgr.Start();
                 updateSelect = new Thread(new ParameterizedThreadStart(threadDraw));
@@ -360,8 +413,12 @@ namespace apk_CFG
         }
         private void threadDraw(object path)
         {
+            string pp = path as string;
+            bool islogs = false;
+            int index = pp.LastIndexOf("\\", pp.Length - 1) + 1;
+            if (pp.Substring(index, 3).Equals("log")) islogs = true;//判断选择是否经过处理的log
             this.diagram.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle,
-                   new Action<object>(DrawGraph), path as string);
+                   new Action<object, bool>(DrawGraph), path as string, islogs);
             isOk = true;
             //updatePgr.Abort();            
         }
@@ -376,18 +433,34 @@ namespace apk_CFG
                 updateSelect.Abort();
         }
 
+        //执行对项目的log语句注入
         private void btn_instrument_Click(object sender, RoutedEventArgs e)
         {
             if (this.outputPath != "")
             {
-                new InstrumentSmali(this.outputPath + this.outFileName);
-                MessageBox.Show("完成对apk项目的插桩，可以进行重编译获取运行的记录信息了！");
+                isOk = false;
+                updatePgr = new Thread(doWork);
+                updatePgr.Start();
+                Thread instr = new Thread(Instrument_thread);
+                instr.Start();                
             }
         }
-
-        private void btn_parseLog_Click(object sender, RoutedEventArgs e)
+        private void Instrument_thread()
         {
-
+            new InstrumentSmali(this.outputPath + this.outFileName);
+            isOk = true;
+            MessageBox.Show("完成对apk项目的插桩，可以进行重编译获取运行的记录信息了！");
         }
+
+        private void zoomIn_Click(object sender, RoutedEventArgs e)
+        {
+            diagram.ZoomFactor = Math.Min(1000, diagram.ZoomFactor + 10);
+        }
+
+        private void zoomOut_Click(object sender, RoutedEventArgs e)
+        {
+            diagram.ZoomFactor = Math.Max(20, diagram.ZoomFactor - 10);
+        }
+
     }
 }

@@ -11,13 +11,14 @@ namespace apk_CFG
     {
         public string LogPath;
         public string outputPath;
-        public string outLogPath;//D:\Documents\GitHub\apk-CFG\apk_CFG\bin\Debug\smali
+        public string outLogPath;//D:\Documents\GitHub\apk-CFG\apk_CFG\bin\Debug\smali\log
         public string MethodXmlPath;//D:\Documents\GitHub\apk-CFG\apk_CFG\bin\Debug\smali\[MainActivity]FOR()V.xml
 
         public List<string> CodeContent;//记录分析好的path编码
-        public string parsedCode;//分析好的path路径   0|2|3|4
+        public string parsedCode;//分析好的path路径   0->2->3->4
         public string id_exit;
-        public List<string> id_looptail;//loop尾的编号序列
+        public int count;//文件名替补计数
+        //public List<string> id_looptail;//loop尾的编号序列
 
         //logPath 待分析的文件路径:C:\Users\Administrator\Desktop\log.txt
         //outputPath 输出的分析好的xml路径D:\Documents\GitHub\apk-CFG\apk_CFG\bin\Debug\smali
@@ -27,12 +28,55 @@ namespace apk_CFG
             this.outputPath = outputPath;
             this.CodeContent = new List<string>();
             this.parsedCode = "";
+            this.count = 0;
 
             createLogFolder(this.outputPath);
             readLog(this.LogPath);
             getMethodPath();
             parseTheLog(this.MethodXmlPath);
-            
+            SaveXmlLog(this.outLogPath);
+        }
+
+        //将获取好的log信息存入xml文件中
+        public void SaveXmlLog(string logPath)
+        {
+            //获取存储的文件名
+            //xx_xx_xx
+            string dateTime = "log" + DateTime.Now.Hour + "_" + DateTime.Now.Minute + "_" + DateTime.Now.Second;
+            int beg,end;
+            beg = this.MethodXmlPath.LastIndexOf("\\", this.MethodXmlPath.Length-1)+1;
+            end = this.MethodXmlPath.LastIndexOf(".",this.MethodXmlPath.Length-1);
+            string ClassMethod = this.MethodXmlPath.Substring(beg, end - beg);//[MainActivity]FOR()V
+            string fileName = dateTime + ClassMethod + ".xml";
+            if (fileName.Length > 120)
+            {
+                fileName = "~" + this.count + ".xml";
+                this.count++;
+            }
+            //添加log信息到xml中
+            var xml = XDocument.Load(this.MethodXmlPath);
+            XElement graph = xml.Element("Graph");
+            var links = graph.Descendants("Link");
+            string[] CodeSub = this.parsedCode.Split('|');
+            string current = CodeSub[0], next = CodeSub[1];
+            foreach (var link in links)//初始化log标志位
+            {
+                link.SetAttributeValue("log", 0);
+            }
+            int i;
+            for (i = 1; i < CodeSub.Length; i++)
+            {
+                foreach (var link in links)
+                {
+                    if (link.Attribute("origin").Value.Equals(CodeSub[i - 1])
+                        && link.Attribute("target").Value.Equals(CodeSub[i]))
+                    {     
+                        //单独设置log属性，标记为1，表示经过的路径 o(s1)(s2)(s3)表示经过的步骤                   
+                        link.SetAttributeValue("log",link.Attribute("log").Value+"(s" + i + ")");
+                    }                    
+                }
+            }
+            xml.Save(logPath + "\\" + fileName);
         }
 
         //获取当前待分析序列的函数文件位置
@@ -66,11 +110,12 @@ namespace apk_CFG
                 if (con.IndexOf("end") != -1)
                 {
                     string contmp = con.Remove(con.Length - 3, 3);
-                    this.parsedCode += (parseTheLog_getcurrentSequence(graph, contmp, numOfvirLink) + "|");
+                    this.parsedCode += (parseTheLog_getcurrentSequence(graph, contmp, numOfvirLink));
                     break;//如果是结束标志，跳出
                 } 
                 this.parsedCode += ( parseTheLog_getcurrentSequence(graph, con, numOfvirLink) + "|") ;
             }
+            xml = null;
         }
 
         //获取virtulink的个数
@@ -82,7 +127,7 @@ namespace apk_CFG
                 if (link.Attribute("label").Value.Equals("jmp"))
                 {
                     count++;
-                    this.id_looptail.Add(link.Attribute("origin").Value);//获取loop尾的id
+                    //this.id_looptail.Add(link.Attribute("origin").Value);//获取loop尾的id
                 }                    
             }
             return count * 2;
@@ -90,7 +135,7 @@ namespace apk_CFG
         }
 
         //获取当前编码的path序列
-        //[潜在问题，并不是获得相邻边里面最大的那个边]
+        //[潜在问题，并不是获得相邻边里面最大的那个边//已修正，获得的都是最大的那个边]
         public string parseTheLog_getcurrentSequence(XElement graph, string pathCode, int numOfvirLink)
         {
             int maxEdgeValue = -1;
@@ -152,7 +197,8 @@ namespace apk_CFG
         {
             this.outLogPath = output + "\\log";
             DirectoryInfo dir = new DirectoryInfo(this.outLogPath);
-            dir.Create();
+            if( !dir.Exists )
+                dir.Create();
         }
 
         //读取文件
@@ -168,5 +214,8 @@ namespace apk_CFG
             // 关闭读取流文件
             apkStreamReader.Close();
         }
+
+        ~parseLog()
+        { }
     }
 }

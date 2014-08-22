@@ -46,6 +46,7 @@ namespace apk_CFG
             this.isFirstIns = true;//第一次载入文件进行分析
 
             ergodicEveryXml(this.cfgPath);
+            this.xml = null;
         }
 
         //遍历每个xml文件，并且分析
@@ -60,6 +61,9 @@ namespace apk_CFG
                     //this.smaliFileContent = new List<string>();//每个文件，每个类
 
                     extraXmlInfo(d);//提取xml信息
+                    //如果没有相关信息，则直接返回
+                    if (this.return_no == -1 || this.method_beg == -1 || this.method_end == -1
+                        || this.locals_hang == -1 || this.locals_num == -1) break;
                     if (this.isFirstIns)//如果是第一次载入，则确定当前的类名为初始类名
                     {
                         this.SmaliNameTojudge = this.SmaliClassName;
@@ -163,11 +167,11 @@ namespace apk_CFG
                                 if (link2.Attribute("label").Value.Equals("jmp") 
                                     && this.reverNodes.IndexOf(link2.Attribute("origin").Value) == -1)
                                 {
-                                    this.reverNodes.Add(link2.Attribute("origin").Value);
-                                    isFindloop = true;
-                                    break;
+                                    this.reverNodes.Add(link2.Attribute("origin").Value);                                    
+                                    break;//找到了可用的loop尾，就加入并跳出标记
                                 }
                             }
+                            isFindloop = true;//即使没有找到可用的loop，尾，也标记，然后跳出
                         }
                         if (isFindloop == true) break;//如果有未加入reve序列的出度点的点跳出
                     }
