@@ -59,7 +59,7 @@ namespace apk_CFG
         public void anaLocalBegEndInfo()
         {
             int index=0, end=0;
-            int st=-1,lo;
+            int st=-1,lo = this.startH,para = 0;
             //List<int> ter = new List<int>();
             int ter=-1;
             int count=0;
@@ -82,9 +82,12 @@ namespace apk_CFG
                     ter = this.startH + count;
                 else if (toJudge.IndexOf("if-") != -1 || toJudge.IndexOf(" goto") != -1)//匹配if和goto关键字行号,r.IsMatch(toJudge)
                     keyWordHang.Add(this.startH + count);
+                else if (toJudge.IndexOf(".parameter") != -1)//记录parameter的偏移行号
+                    para = this.startH + count - lo;
                 count++;
                 index = end + 1;
             }
+            if (st == -1) st = lo + para;
             begendInfo = this.SourceSmaliPath + "|" + st + "|" + ter;//source ,beg ,end info
             /*
             foreach (int tertmp in ter)
@@ -146,7 +149,9 @@ namespace apk_CFG
                         break;
                     }                        
                 }
-
+                r = new Regex(keyWord[keyWord.Length - 1], RegexOptions.Compiled);
+                if (r.IsMatch(tmp))//return-void的判断
+                    border_tmp.Add(index + tmp.Length);
                 //判断 : 标号
                 r = new Regex(keyWord[keyWord.Length-2], RegexOptions.Compiled);                    
                 if (r.IsMatch(tmp))
@@ -164,6 +169,7 @@ namespace apk_CFG
 
         //将分块存储进去
         //【测试】正式使用修改
+        //行号添加部分
         public void storeBlock()
         {
             methodSplit();
@@ -176,11 +182,11 @@ namespace apk_CFG
             int index = 0;
             string blockTmp;
             int indexOfhang=0;//行号数组的下标记录
-            //Regex r = new Regex("^goto", RegexOptions.Compiled);
+            Regex r = new Regex("^goto", RegexOptions.Compiled);
             foreach (int in_tmp in borderIndex)
             {
                 blockTmp = this.methodContent.Substring(index, in_tmp - index);
-                if (blockTmp.IndexOf("if-") != -1 || blockTmp.IndexOf("\ngoto") != -1)//如果代码块中有goto或者if，那么加上对应的行号
+                if (blockTmp.IndexOf("if-") != -1 || blockTmp.IndexOf("\ngoto") != -1 || r.IsMatch(blockTmp))//如果代码块中有goto或者if，那么加上对应的行号
                     blockTmp += ("|" + keyWordHang[indexOfhang++]);
                 InstruBlock.Add(blockTmp);
                 index = in_tmp;
@@ -259,7 +265,9 @@ namespace apk_CFG
                 else if (keySearch == 3)//解析try/catch指令
                 {
                     int[] tc = parseTry(Tail);
-                    LinkFunc.Add(i + "|" + tc[0] + "|" + "try");
+                    //LinkFunc.Add(i + "|" + tc[0] + "|" + "try");
+                    k = i+1;
+                    LinkFunc.Add(i + "|" + k + "|" + "next");//改变try的另一个方向为相邻的下一个方向
                     LinkFunc.Add(i + "|" + tc[1] + "|" + "catch");
                 }
                 else if (keySearch == 4 || keySearch == 5)//解析packed_switch和sparse-switch, 
@@ -311,6 +319,7 @@ namespace apk_CFG
 
         //解析try/catch指令--   
         //[存在try 跳转方向的疑问。这里将try指令 指向了try_start的地方]
+        //[--8-23--修改try的方向，直接指向下一个目标]
         //----[存在throw的情况没有分析，  有的throw有catch，  有的没有catch]
         //[测试]，正式修改
         public int[] parseTry(string inTry)

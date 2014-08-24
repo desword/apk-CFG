@@ -246,6 +246,7 @@ namespace apk_CFG
             //使用之前，先全部清理掉
             string xmlPath = xmlPaths as string;
             string retu_id="";
+            string Nodenum = "";//结点的个数
 
             diagram.ClearAll();
             diagram.LinkHeadShape = ArrowHeads.PointerArrow;//设置连线箭头的类型
@@ -264,7 +265,11 @@ namespace apk_CFG
             // load node data
             var sours = graph.Descendants("Source");
             foreach (var sour in sours)//获取exit的结点
+            {
                 retu_id = sour.Attribute("retNo").Value;
+                Nodenum = sour.Attribute("noNum").Value;
+            }
+                
 
             var nodes = graph.Descendants("Node");
             foreach (var node in nodes)
@@ -281,45 +286,49 @@ namespace apk_CFG
             //设置特殊结点的颜色
             ShapeNode s2 = (ShapeNode)nodeMap["0"];//起点位置是绿色
             s2.Brush = Brushes.LightGreen;
-            s2 = (ShapeNode)nodeMap[retu_id];//终止位置是红色
-            s2.Brush = Brushes.Red;
-
-            // load link data
-            Style linkStyle = new Style();
-            linkStyle.Setters.Add(new Setter(DiagramLink.BrushProperty, Brushes.Red));//log信息的颜色标记
-
-            var links = graph.Descendants("Link");
-            foreach (var link in links)
+            if (Nodenum != "1")//对于只有一个结点的情况处理
             {
-                DiagramLink dl = diagram.Factory.CreateDiagramLink(
-                    nodeMap[link.Attribute("origin").Value],
-                    nodeMap[link.Attribute("target").Value]);
-                
-                if( link.Attribute("label").Value.Equals("True"))//为ifelse 标记形状
-                {
-                    ShapeNode s = (ShapeNode)nodeMap[link.Attribute("origin").Value];
-                    s.Shape = Shapes.Decision;
-                    //s.Brush = Brushes.RoyalBlue;
-                    s.TextAlignment = TextAlignment.Center;
-                }
-                
-                //----------log采集的信息显示                
-                if (isLog && !link.Attribute("log").Value.Equals("0"))
-                {
-                    dl.Style = linkStyle;                    
-                    string logShow = link.Attribute("log").Value.Remove(0, 1);
-                    dl.AddLabel(link.Attribute("label").Value + "--"+logShow); //显示运行的步骤信息
-                    dl.IntermediateShape = ArrowHeads.PointerArrow;
-                }
-                else
-                    dl.AddLabel(link.Attribute("label").Value);  //添加链接信息
-                    
+                s2 = (ShapeNode)nodeMap[retu_id];//终止位置是红色
+                s2.Brush = Brushes.Red;
 
-                //diagram.DiagramLinkStyle = linkStyle;
-                //Brush a = new Brush();
-                //a.
-                //dl.HeadPen.Brush = Brush;
+                // load link data
+                Style linkStyle = new Style();
+                linkStyle.Setters.Add(new Setter(DiagramLink.BrushProperty, Brushes.Red));//log信息的颜色标记
+
+                var links = graph.Descendants("Link");
+                foreach (var link in links)
+                {
+                    DiagramLink dl = diagram.Factory.CreateDiagramLink(
+                        nodeMap[link.Attribute("origin").Value],
+                        nodeMap[link.Attribute("target").Value]);
+
+                    if (link.Attribute("label").Value.Equals("True"))//为ifelse 标记形状
+                    {
+                        ShapeNode s = (ShapeNode)nodeMap[link.Attribute("origin").Value];
+                        s.Shape = Shapes.Decision;
+                        //s.Brush = Brushes.RoyalBlue;
+                        s.TextAlignment = TextAlignment.Center;
+                    }
+
+                    //----------log采集的信息显示                
+                    if (isLog && !link.Attribute("log").Value.Equals("0"))
+                    {
+                        dl.Style = linkStyle;
+                        string logShow = link.Attribute("log").Value.Remove(0, 1);
+                        dl.AddLabel(link.Attribute("label").Value + "--" + logShow); //显示运行的步骤信息
+                        dl.IntermediateShape = ArrowHeads.PointerArrow;
+                    }
+                    else
+                        dl.AddLabel(link.Attribute("label").Value);  //添加链接信息
+
+
+                    //diagram.DiagramLinkStyle = linkStyle;
+                    //Brush a = new Brush();
+                    //a.
+                    //dl.HeadPen.Brush = Brush;
+                }
             }
+            
             
             // arrange the graph
             var layout = new MindFusion.Diagramming.Wpf.Layout.DecisionLayout();

@@ -18,6 +18,7 @@ namespace apk_CFG
         public string parsedCode;//分析好的path路径   0->2->3->4
         public string id_exit;
         public int count;//文件名替补计数
+        public XDocument xml;
         //public List<string> id_looptail;//loop尾的编号序列
 
         //logPath 待分析的文件路径:C:\Users\Administrator\Desktop\log.txt
@@ -54,8 +55,8 @@ namespace apk_CFG
                 this.count++;
             }
             //添加log信息到xml中
-            var xml = XDocument.Load(this.MethodXmlPath);
-            XElement graph = xml.Element("Graph");
+            this.xml = XDocument.Load(this.MethodXmlPath);
+            XElement graph = this.xml.Element("Graph");
             var links = graph.Descendants("Link");
             string[] CodeSub = this.parsedCode.Split('|');
             string current = CodeSub[0], next = CodeSub[1];
@@ -76,7 +77,7 @@ namespace apk_CFG
                     }                    
                 }
             }
-            xml.Save(logPath + "\\" + fileName);
+            this.xml.Save(logPath + "\\" + fileName);
         }
 
         //获取当前待分析序列的函数文件位置
@@ -96,7 +97,7 @@ namespace apk_CFG
         //[暂时对一个函数内部，没有调用的情况进行分析]
         public void parseTheLog(string methodPath)
         {
-            var xml = XDocument.Load(methodPath);
+            this.xml = XDocument.Load(methodPath);
             XElement graph = xml.Element("Graph");
             var links = graph.Descendants("Link");
             int numOfvirLink = parseTheLog_initInfo(links);
@@ -115,7 +116,53 @@ namespace apk_CFG
                 } 
                 this.parsedCode += ( parseTheLog_getcurrentSequence(graph, con, numOfvirLink) + "|") ;
             }
-            xml = null;
+            //xml = null;
+        }
+
+        //loop尾的判断
+        //[loop尾问题]：  1、代码块小，2、跳过去的是true label， 或者本身是if-else， label
+        //[从下跳转到上面的时候，下一段代码才是if-else的情况]iterator
+        //[普遍的问题：]if-else条件判断的内容是一个函数或者多个函数，那么直接的代码块将不是if-else
+        public int isLoopTail(XElement link)
+        {
+            int ori, tar;
+            ori = Int32.Parse(link.Attribute("origin").Value);//当前位置的代码号
+            tar = Int32.Parse(link.Attribute("target").Value);//目标位置的代码号
+            string tarLabel = "";//目标位置的label
+            string oarLabel = link.Attribute("label").Value;//当前位置的label
+            XElement graph = this.xml.Element("Graph");
+            var links = graph.Descendants("Link");
+            bool isObigT = false;
+            foreach (var ll in links)//判断出发结点是否可能是loop尾结点
+            {
+                if (ll.Attribute("origin").Value.Equals(ori.ToString())
+                    && Int32.Parse(ll.Attribute("origin").Value) > Int32.Parse(ll.Attribute("target").Value))
+                {
+                    isObigT = true;
+                    break;
+                }
+            }
+            string midTar = "";
+            string midTarLabel = "";
+            foreach (var ll in links)//目标块的直接label
+                if (ll.Attribute("origin").Value.Equals(tar.ToString()))
+                {
+                    tarLabel = ll.Attribute("label").Value;
+                    midTar = ll.Attribute("target").Value;
+                }
+
+            foreach (var ll in links)//目标块的间接下一个label
+                if (ll.Attribute("origin").Value.Equals(midTar))
+                    midTarLabel = ll.Attribute("label").Value;
+
+            if (isObigT //代码块大于目标块
+                && (tarLabel.Equals("True") || tarLabel.Equals("False")//目标块是ifelse判断
+                || (tarLabel.Equals("OnReturn") && midTarLabel.Equals("True") || midTarLabel.Equals("False"))))//目标块间接判断
+                return 1;
+            if (isObigT //代码块大于目标块
+                && (oarLabel.Equals("True") || oarLabel.Equals("False")))//当前块是ifelse判断
+                return 2;
+            return 0;//不是loop尾
         }
 
         //获取virtulink的个数
@@ -124,7 +171,7 @@ namespace apk_CFG
             int count=0;
             foreach( var link in links)
             {
-                if (link.Attribute("label").Value.Equals("jmp"))
+                if (isLoopTail(link) ==1 || isLoopTail(link) ==2)
                 {
                     count++;
                     //this.id_looptail.Add(link.Attribute("origin").Value);//获取loop尾的id
@@ -149,9 +196,10 @@ namespace apk_CFG
             var links = graph.Descendants("Link");
             while (true)
             {
+                //正常边判断
                 foreach (var link in links)
                 {
-                    if (!link.Attribute("label").Value.Equals("jmp") && link.Attribute("origin").Value.Equals(currentNodeId)
+                    if ( isLoopTail(link)==0 && link.Attribute("origin").Value.Equals(currentNodeId)
                         && Int32.Parse(link.Attribute("wei").Value) > maxEdgeValue
                         && Int32.Parse(link.Attribute("wei").Value) <= pathCodeInt)
                     {

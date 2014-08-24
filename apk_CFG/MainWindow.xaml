@@ -1,7 +1,7 @@
 ﻿<Window x:Class="apk_CFG.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MainWindow" Height="668" Width="923" xmlns:diag="http://mindfusion.eu/diagramming/wpf" DragEnter="drag_enter" Closed="windowClosed">
+        Title="Path Profiling for Android Application-- by desword" Height="668" Width="923" xmlns:diag="http://mindfusion.eu/diagramming/wpf" DragEnter="drag_enter" Closed="windowClosed" Icon="/apk_CFG;component/Addressbook.ico">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="1.5*"></RowDefinition>

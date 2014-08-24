@@ -10,6 +10,8 @@ namespace apk_CFG
 {
     public class InstrumentSmali
     {
+        //[问题]：仅凭跳转是jmp， 或者跳转的代码块小于当前的代码块无法准确的判断是否是loop
+        //解决： 两个条件，代码块小于当前；  跳转过去的结点是ifelse结点， 或者本身是if-else， label
         public string cfgPath;
         public List<string> smaliFileContent;//smali文件的内容,  index对应行号[不知是否有未解决的牵扯的问题]
         //public string smaliFileContent;
@@ -126,11 +128,60 @@ namespace apk_CFG
         }
 
  
+        //loop尾的判断
+        //[loop尾问题]：  1、代码块小，2、跳过去的是true label， 或者本身是if-else， label
+        //[从下跳转到上面的时候，下一段代码才是if-else的情况]iterator
+        //[普遍的问题：]if-else条件判断的内容是一个函数或者多个函数，那么直接的代码块将不是if-else
+        public int isLoopTail(XElement link)
+        {
+            int ori, tar;
+            ori = Int32.Parse( link.Attribute("origin").Value);//当前位置的代码号
+            tar = Int32.Parse(link.Attribute("target").Value);//目标位置的代码号
+            string tarLabel = "";//目标位置的label
+            string oarLabel = link.Attribute("label").Value;//当前位置的label
+            XElement graph = this.xml.Element("Graph");
+            var links = graph.Descendants("Link");
+            bool isObigT = false;
+            foreach (var ll in links)//判断出发结点是否可能是loop尾结点
+            {
+                if (ll.Attribute("origin").Value.Equals(ori.ToString())
+                    && Int32.Parse(ll.Attribute("origin").Value) > Int32.Parse(ll.Attribute("target").Value))
+                {
+                    isObigT = true;
+                    break;
+                }            
+            }
+            string midTar = "";
+            string midTarLabel = "";
+            foreach (var ll in links)//目标块的直接label
+                if(ll.Attribute("origin").Value.Equals(tar.ToString()))
+                {
+                    tarLabel = ll.Attribute("label").Value;
+                    midTar = ll.Attribute("target").Value;
+                }
+
+            foreach (var ll in links)//目标块的间接下一个label
+                if (ll.Attribute("origin").Value.Equals(midTar))
+                    midTarLabel = ll.Attribute("label").Value;
+
+            if (isObigT //代码块大于目标块
+                && (tarLabel.Equals("True") || tarLabel.Equals("False")//目标块是ifelse判断
+                || (tarLabel.Equals("OnReturn") && midTarLabel.Equals("True") || midTarLabel.Equals("False") )))//目标块间接判断
+                return 1;
+            if (isObigT //代码块大于目标块
+                && (oarLabel.Equals("True") || oarLabel.Equals("False")))//当前块是ifelse判断
+                return 2;
+            return 0;//不是loop尾
+        }
+
+
 
         //归约出结点分析序列
         //应对exit 和循环结点分离的情况，一个if把两个代码块分离开了
         //加入结点之前，判断加入的点是否有额外的[没有加入rever序列]的分支，
         //一旦有分支，则立刻抛弃所有等待加入的点，寻找一个[没有加入]过的jmp，ori加入。
+        //[loop尾问题]：  1、代码块小，2、跳过去的是true label， 或者本身是if-else， label
+        //[考虑移除代码部分]
         public void reverseNode()
         {            
             //XDocument xtmp = toXDocument(this.xml);
@@ -141,17 +192,23 @@ namespace apk_CFG
             
             string searchNumer = this.return_no+"";
             int poiIndex = 1;//当前扫描的结点位置
+            int ori, tar;//------用于判断loop尾
             while (this.reverNodes.Count < this.Node_num-1 )//一直加入到只剩下entry结点
             {
                 tmpRe = new List<int>();
                 foreach (var link in links)//加入所有当前结点的前继结点, 且不是loop尾的结点
                 {
-                    if (link.Attribute("target").Value.Equals(searchNumer) && !link.Attribute("label").Value.Equals("jmp"))
-                        tmpRe.Add(Int32.Parse(link.Attribute("origin").Value));                    
+                    if (link.Attribute("target").Value.Equals(searchNumer) && isLoopTail(link)!=1 )
+                        tmpRe.Add(Int32.Parse(link.Attribute("origin").Value));  
+                    //对于非loop的jmp的处理. 如果jmp指向的是exit
+                    //[考虑移除]----------------
+                    //else if (link.Attribute("target").Value.Equals(this.return_no + ""))
+                     //   tmpRe.Add(Int32.Parse(link.Attribute("origin").Value));  
                 }
                 if (tmpRe.Count == 0) break;//如果没有前继结点，说明没有此图中没有连线
                 tmpRe.Sort( (x,y) => y-x );//从大到小排列
                 bool isFindloop = false;
+                //int ori, tar;
                 foreach (int x in tmpRe)
                 {
                     //寻找当前点是否有未加入rever序列的出度点
@@ -163,9 +220,10 @@ namespace apk_CFG
                         {
                             foreach (var link2 in links)
                             {
+                                ori = Int32.Parse(link2.Attribute("origin").Value);
+                                tar = Int32.Parse(link2.Attribute("target").Value);
                                 //寻找loop尾，且未在reve序列中的结点
-                                if (link2.Attribute("label").Value.Equals("jmp") 
-                                    && this.reverNodes.IndexOf(link2.Attribute("origin").Value) == -1)
+                                if (isLoopTail(link2) == 1 || isLoopTail(link2) == 2 && this.reverNodes.IndexOf(link2.Attribute("origin").Value) == -1)                                   
                                 {
                                     this.reverNodes.Add(link2.Attribute("origin").Value);                                    
                                     break;//找到了可用的loop尾，就加入并跳出标记
@@ -187,7 +245,8 @@ namespace apk_CFG
 
         //分析是否有for循环，有则进行加边，去边处理
         //直接添加链接head和tail的边即可，   去边直接检索jmp的label即可
-        //[目前把有jmp标记的都认为是有for循环]
+        //[目前把有jmp标记的都认为是有for循环--有问题--正在解决]
+        //[加入isLoopTail判断函数]
         public void dealWithLoop()
         {
             //XDocument xtmp = toXDocument(this.xml);
@@ -195,7 +254,7 @@ namespace apk_CFG
             var links = graph.Descendants("Link");
             foreach (var link in links)
             {
-                if (link.Attribute("label").Value == "jmp")//判断backedge 的边
+                if ( isLoopTail(link)==1 || isLoopTail(link)==2 )//判断当前是loop尾
                 {
                     this.virtuLink.Add(link.Attribute("origin").Value + "|" + this.return_no);//loop尾到exit的虚边
                     this.virtuLink.Add("0|" + link.Attribute("target").Value);//entry到loop头的虚边
@@ -207,6 +266,7 @@ namespace apk_CFG
         //按照结点序列，依次分析结点的值，以及边的值
         //并且直接将边的值依次赋值到新的xml对应的link中
         //dummy边的值先暂时存储在 virtulink中
+        //[加入loop判断]
         public void calcNodeandEdgeValue()
         {
             //XDocument xtmp = toXDocument(this.xml);
@@ -220,10 +280,10 @@ namespace apk_CFG
 
             for(i=1 ; i<this.reverNodes.Count ; i++)
             {
-                foreach (var link in links)//遍历每条非jmp的 原始边
+                foreach (var link in links)//遍历每条非[jmp] loop backedge   的 原始边
                 {
                     if (link.Attribute("origin").Value.Equals(this.reverNodes[i])
-                          && !link.Attribute("label").Value.Equals("jmp"))//寻找当前结点的出度边，且不是backedge边
+                          && isLoopTail(link)==0 )//寻找当前结点的出度边，且不是backedge边
                     {
                         link.SetAttributeValue("wei", NodeWeight[Int32.Parse(this.reverNodes[i])]);
                         NodeWeight[Int32.Parse(this.reverNodes[i])] += NodeWeight[Int32.Parse(link.Attribute("target").Value)];//更新结点weight
@@ -244,6 +304,7 @@ namespace apk_CFG
         }
 
         //对具有权值>0的边进行插桩操作
+        //[loop尾的判断]
         public void justInstrument()
         {
             
@@ -255,11 +316,11 @@ namespace apk_CFG
 
             foreach (var link in links)
             {
-                if (link.Attribute("label").Value.Equals("jmp"))//处理loop尾的jmp边
+                if (isLoopTail(link) == 1 || isLoopTail(link) == 2)//处理loop尾的jmp边
                 {
                     justInstrument_loop(link);
                 }
-                else if (!link.Attribute("wei").Value.Equals("0"))//处理if边，且不等0wei
+                else if(link.Attribute("label").Value.Equals("False"))//处理if边，
                 {
                     justInstrument_inc(link);
                 }
@@ -323,12 +384,12 @@ namespace apk_CFG
             string loopTailId = link.Attribute("origin").Value;
             int gotoHang=0;
             string gotoTmp= "";
-            foreach( var ll in links)//搜索goto行的位置
+            foreach( var ll in links)//搜索loop尾行的位置
             {
                 if (ll.Attribute("id").Value.Equals(loopTailId))
                 {
                     gotoHang = Int32.Parse(ll.Attribute("hang").Value);
-                    gotoTmp = this.smaliFileContent[gotoHang];//暂时存储goto行的内容
+                    gotoTmp = this.smaliFileContent[gotoHang];//暂时存储loop尾行的内容
                     break;
                 }
             }
@@ -343,7 +404,7 @@ namespace apk_CFG
                 else if(virSub[1].Equals(loopHeadId))//如果当前边是 entry->head
                     headIncre = virSub[2];
             }
-            this.smaliFileContent[gotoHang] = "";//首先归零goto行的数据
+            this.smaliFileContent[gotoHang] = "";//首先归零loop尾行的数据
             //1、如果tailinc不是0，就进行加值. 在goto之前添加:  vPathId += tailIncre
             if (!tailIncre.Equals("0"))
             {
@@ -360,7 +421,7 @@ namespace apk_CFG
             //3、给vPathId赋予新的headinc的值
             this.smaliFileContent[gotoHang] +=
                   ( "const/16 "+ this.vPathId +", "+ headIncre +"\n"  );
-            //4、赋予goto内容
+            //4、赋予loop尾内容
             this.smaliFileContent[gotoHang] += gotoTmp;
         }
 
