@@ -1,0 +1,34 @@
+--声明开始
+.locals 10
+
+const/4 pid, 0x0
+const-string sz, "beg[MainActivity]FOR()V|"
+invoke-static {sz, sz}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+--instu递增
+const/16 增量, 5
+add-int pid, pid, 增量
+
+--结束输出
+new-instance sb, Ljava/lang/StringBuilder;
+invoke-static {pid}, Ljava/lang/String;->valueOf(I)Ljava/lang/String;
+move-result-object pid
+invoke-direct {sb, pid}, Ljava/lang/StringBuilder;-><init>(Ljava/lang/String;)V
+const-string sz, "end"
+invoke-virtual {sb, sz}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+move-result-object sb
+invoke-virtual {sb}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+move-result-object sb
+invoke-static {sz, sb}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+return-
+
+--loop尾输出
+
+invoke-static {pid}, Ljava/lang/String;->valueOf(I)Ljava/lang/String;
+move-result-object 增量
+invoke-static {增量, 增量}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+const/16 pid, 增量
+   
+goto :goto_0
+    
